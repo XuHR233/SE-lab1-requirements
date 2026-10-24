@@ -1,0 +1,5 @@
+# 只提交作业要求的两个文件，其余一律忽略
+*
+!.gitignore
+!requirements.md
+!chat.txt
