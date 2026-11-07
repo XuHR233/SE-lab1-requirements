@@ -1,0 +1,60 @@
+@startuml
+' 实验二 · 二手交易系统 · 订单（交易）状态图
+' 依据：REQ-013 支付锁货 / REQ-014 支付超时 / REQ-015 发货与超时 / REQ-016 收货与退款 / REQ-024 客服介入
+' 与「商品状态图」互补：商品状态只表达能否被买卖，履约细节记在订单状态；
+' 支付成功后商品转「交易中」并保持不变，直到订单终结才转「已售出」——发货不改变商品状态。
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam nodesep 26
+skinparam ranksep 34
+skinparam state {
+  BackgroundColor #F7FBF7
+  BorderColor #4B7A5E
+}
+
+state "待付款" as O1
+state "待发货" as O2
+state "待收货" as O3
+state "已完成" as O4
+state "已取消" as O5
+state "已退款" as O6
+state "纠纷中" as O7
+
+[*] --> O1 : 买家下单（不锁货）
+
+O1 --> O2 : 支付成功（商品转交易中）
+O1 --> O5 : 15 分钟未付 / 买家取消
+
+O2 --> O3 : 卖家 48 小时内确认发货
+O2 --> O6 : 未发货全额退款
+O2 --> O7 : 客服介入
+
+O3 --> O4 : 确认收货 / 满 7 天自动确认
+O3 --> O7 : 客服介入
+
+O7 --> O6 : 裁定退款
+O7 --> O4 : 裁定继续履约
+
+note right of O2
+  <b>发货不改商品状态</b>
+  订单转待收货，商品仍为「交易中」：
+  已锁货给唯一一条已支付订单，
+  期间不可改价、不可下架、不可被他人下单。
+end note
+
+note bottom of O3
+  <b>自动确认</b>
+  普通订单：发货后满 7 天自动确认放款，前 3 天提醒买家。
+  预售订单：卖家「确认到货」后，次日 00:00 起满 1 个完整日自动确认。
+end note
+
+note as TAIL
+  <b>终态与后续</b>
+  · 已完成：结算放款（1.5% 封顶 200 元），开放 14 天互评
+  · 已退款：仅未发货全额退款，商品转「已下架」，再走草稿重新上架
+  · 已取消：商品保持「已发布」，可被他人继续下单
+  · 一期不做：已发货后的退货退款、部分退款（质量纠纷转线下客服）
+end note
+
+@enduml

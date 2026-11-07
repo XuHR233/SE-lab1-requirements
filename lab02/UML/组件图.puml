@@ -1,0 +1,68 @@
+@startuml
+' 实验二 · 二手交易系统 · 组件图（模块划分与模块交互）
+' 画法取舍：职责写进模块框内，不再用大块便签解释；跨模块交互压成底部图注。
+' 版心约束：报告 A4 版心 16cm，图越宽字越小（12px 字号在 1920px 宽图上打印只有 1.0mm）。
+'           故模块标签压到 2 行、图注拆短行，把画布宽度收到 ~1100px，字高约 1.7mm 可读。
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam nodesep 14
+skinparam ranksep 30
+skinparam padding 8
+skinparam componentStyle rectangle
+skinparam component {
+  BackgroundColor #F4F8FF
+  BorderColor #4A6FA5
+}
+skinparam packageBackgroundColor #FAFCFE
+skinparam packageBorderColor #9BB2C8
+skinparam databaseBackgroundColor #FFF6E5
+
+component "Web 前端\n买家 · 卖家 · 管理三端" as FE
+component "API 网关\n鉴权 · 越权拦截 · 限流 · 幂等" as GW
+
+package "业务模块层" as BIZ {
+  component "M1 账号与权限\n注册登录 · 角色 · 会话" as M1
+  component "M2 商品中心\n发布审核 · 状态机 · 检索" as M2
+  component "M3 预售预约\n定金锁货 · 确认 · 尾款" as M3
+  component "M4 交易与资金\n订单 · 托管支付 · 退款" as M4
+  component "M5 沟通\n商品会话 · 消息" as M5
+  component "M6 评价与统计\n一单一评 · 卖家统计" as M6
+  component "M7 日志与运维\n操作日志 · 备份" as M7
+}
+
+component "数据访问层\n事务边界 · 唯一约束" as DAO
+database "MySQL 主库" as DB
+component "支付宝 / 微信\n担保托管" as PAY
+component "对象存储\n商品图片" as OSS
+component "短信通知\n到货 · 确认前提醒" as SMS
+component "定时调度\n取消 · 自动确认 · 失效" as SCHED
+
+' ———— 分层调用 ————
+FE --> GW : HTTPS / JSON
+
+GW --> M1 : 鉴权后分发
+GW --> M2
+GW --> M3
+GW --> M4
+GW --> M5
+GW --> M6
+GW --> M7
+
+BIZ --> DAO : 统一读写
+DAO -right-> DB : 读写
+M4 <--> PAY : 放款 / 退款 / 回调
+M2 --> OSS : 图片
+M3 --> SMS : 到货提醒
+M4 --> SCHED : 超时任务
+
+note bottom of BIZ
+  <b>跨模块调用</b>
+  M3 → M4 尾款成功生成订单
+  M4 → M2 支付成功锁货并改商品状态
+  M4 → M6 订单完成开放评价
+  M1 → M7 登录与权限变更留痕
+  M5 → M2 会话校验商品有效性与归属
+end note
+
+@enduml

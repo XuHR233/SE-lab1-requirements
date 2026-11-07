@@ -1,0 +1,57 @@
+@startuml
+' 实验二 · 二手交易系统 · 状态图（二）异常与退出：驳回 / 撤回 / 修改重审 / 下架后回退 / 违规下架 / 删除
+' 本图 11 条 + 状态图（一）9 条 = REQ-010 允许的 20 条转换（不重复、不遗漏）
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam nodesep 50
+skinparam ranksep 70
+skinparam ArrowColor #8A4B4B
+skinparam state {
+  BackgroundColor #FBF7F7
+  BorderColor #8A4B4B
+  FontSize 13
+}
+hide empty description
+
+state "草稿" as S1
+state "待审核" as S2
+state "已驳回" as S3
+state "已发布\n（上架售卖）" as S4
+state "已预售\n（只接受预约）" as S5
+state "已下架\n（卖家自主）" as S8
+state "违规下架\n（管理员强制）" as S9
+state "已删除" as S10
+
+' —— ①审核不通过 / 卖家撤回 / 改后重来 ——
+S2 --> S3 : 驳回（必填理由）
+S2 --> S1 : 卖家撤回
+S3 --> S1 : 修改后重来
+
+' —— ②在架商品修改一律重回审核（只有卖家改了内容才触发，不是系统定期复审）——
+S4 --> S2 : 卖家修改后重审
+S5 --> S2 : 卖家修改后重审
+
+' —— ③卖家下架后只能退回草稿，不能直接再上架 ——
+S8 --> S1 : 退回草稿
+
+' —— ④违规处置：已发布、已预售、已下架都可被强制下架，卖家不能自行恢复 ——
+S4 --> S9 : 违规处置
+S5 --> S9 : 违规处置
+S8 --> S9 : 违规处置（卖家已自行下架也要封住）
+S9 --> S1 : 退回草稿重新送审
+
+' —— ⑤删除只允许发生在草稿 ——
+S1 --> S10 : 卖家删除
+
+note right of S9
+  一期<b>无申诉通道</b>，唯一出路「退回草稿」后重审；
+  「交易中」不可违规下架，只能管理员裁定终止。
+end note
+
+note bottom of S10
+  物理删除一律禁止：所有状态只做逻辑删除，
+  历史订单、日志与统计仍可追溯。
+end note
+
+@enduml

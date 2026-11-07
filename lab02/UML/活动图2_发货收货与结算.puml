@@ -1,0 +1,49 @@
+@startuml
+' 实验二 · 二手交易系统 · 活动图 2/2：发货、收货与结算（卖家 · 平台 · 买家）
+' 承接 活动图1_下单与支付，本图从「支付成功」之后开始。
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam swimlaneWidth 175
+skinparam activity {
+  BackgroundColor #F6F9FF
+  BorderColor #4A6FA5
+  DiamondBackgroundColor #FFF7E0
+}
+skinparam swimlane {
+  BorderColor #9BB2C8
+  BackgroundColor #FCFDFF
+  TitleFontColor #33506B
+}
+
+|卖家|
+start
+:收到支付成功通知\n订单进入待发货;
+
+if (48 小时内发货？) then (否)
+  |买家|
+  :可申请全额退款\n平台不向卖家放款;
+  stop
+else (是)
+endif
+
+|卖家|
+:确认发货并填写物流单号;
+
+|平台系统|
+:订单 → 待收货\n（超过 48 小时未发货转可退款）;
+
+|买家|
+if (收货后 7 天内主动确认？) then (是)
+  :点击确认收货;
+else (否)
+endif
+
+|平台系统|
+:第 7 天到期自动确认收货\n（确认前 3 天发短信提醒）;
+:订单 → 已完成，商品 → 已售出;
+:发「放款」指令\n成交额 1.5%，单笔封顶 200 元;
+:开放买卖双方互评\n14 天内一单一评;
+stop
+
+@enduml

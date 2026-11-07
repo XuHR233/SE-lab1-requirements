@@ -1,0 +1,57 @@
+@startuml
+' 实验二 · 二手交易系统 · 时序图（支付回调锁货：并发抢购的唯一一条成功路径）
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #4A6FA5
+  LifeLineBorderColor #999999
+  ParticipantBackgroundColor #F4F8FF
+  ParticipantBorderColor #4A6FA5
+}
+autonumber
+
+actor "买家" as Buyer
+participant "浏览器 / 前端" as FE
+participant "订单服务\n(M4 交易与资金)" as Order
+participant "支付宝 / 微信\n(担保托管)" as Pay
+database "MySQL" as DB
+
+Buyer -> FE : 点击「立即购买」
+FE -> Order : POST /orders\n{商品ID, request_id, 商品版本号}
+Order -> DB : 查询商品状态 + 当前有效订单
+DB --> Order : 已发布；无已支付有效订单
+
+Order -> Order : 校验版本号（旧页面则拒绝并提示刷新）
+Order -> DB : 创建订单（待付款，15 分钟有效）
+Order --> FE : 订单号 + 支付发起参数
+FE --> Buyer : 跳转第三方支付
+
+Buyer -> Pay : 完成付款
+Pay -> Order : 异步回调\n{支付单号, 流水号, 金额, 签名}
+Order -> Order : 验签 → 按 request_id 幂等 → 校验金额一致
+
+Order -> DB : BEGIN\nUPDATE 商品 SET 状态=交易中\nWHERE 商品ID=? AND 状态=已发布
+alt 抢锁成功（影响行数 = 1）
+  Order -> DB : 更新订单为已支付；写托管流水（冻结）
+  Order --> Pay : 返回 success
+  Pay --> Buyer : 支付成功通知（商品已锁定）
+else 已被他人抢先（影响行数 = 0）
+  Order -> DB : 本次订单标记「抢购失败」
+  Order -> DB : 生成全额退款单
+  Order --> Pay : 返回 success（避免支付机构重复回调）
+  Pay --> Buyer : 支付成功但已退款的通知
+end
+
+Order -> DB : COMMIT
+Order -> Order : 写操作日志（操作人、前后状态、结果）
+
+note over Order, DB
+  <b>并发三铁律（REQ-014 / REQ-024）</b>
+  1. 同一商品同时只允许 1 条已支付有效订单
+     —— 靠「带状态条件的 UPDATE」抢占，不用先查后改；
+  2. 重复回调按 request_id 幂等，重复请求只生效一次；
+  3. 旧页面提交按商品版本号拒绝，不静默覆盖最新内容。
+end note
+
+@enduml

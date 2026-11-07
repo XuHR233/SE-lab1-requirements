@@ -1,0 +1,167 @@
+@startuml
+' 实验二 · 二手交易系统 · 类图（按业务模块分簇，减少空白与长连线）
+' 画法取舍：旧版把 15 个类平铺，Graphviz 为避让交叉拉出大量长弧线，画布宽 2455、中间大片空白。
+'           新版用 package 分 5 簇（对应组件图的 M1/M2/M3/M4/M6+M5+M7），簇内聚、簇间只留必要关系。
+' 约束（同商品 1 条有效预约 / 1 条已支付订单 / 商品 10 态）不写在图上，放报告图注，避免便签撑大画布。
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 12
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 14
+skinparam ranksep 30
+skinparam packageStyle rectangle
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #555555
+  ArrowColor #444444
+}
+skinparam packageBackgroundColor #FAFCFE
+skinparam packageBorderColor #9BB2C8
+
+package "用户与权限（M1）" as P1 {
+  class "用户 User" as User {
+    -用户编号 : long
+    -昵称 : string
+    -角色 : 枚举(买家/卖家/管理员)
+    -账号状态 : 枚举(正常/冻结)
+    +注册()
+    +登录()
+    +校验权限(操作) : boolean
+  }
+}
+
+package "商品中心（M2）" as P2 {
+  class "商品 Product" as Product {
+    -商品编号 : string
+    -标题 : string
+    -价格 : decimal
+    -状态 : 枚举(10 态)
+    -创建时间 : datetime
+    +提交审核()
+    +修改()
+    +下架()
+    +检查状态转换(目标态) : boolean
+  }
+  class "商品图片 ProductImage" as ProductImage {
+    -图片编号 : long
+    -存储地址 : string
+    -顺序 : int
+  }
+  class "分类 Category" as Category {
+    -分类编号 : int
+    -名称 : string
+  }
+  class "标签 Tag" as Tag {
+    -标签编号 : int
+    -名称 : string
+  }
+  class "审核记录 AuditRecord" as AuditRecord {
+    -审核编号 : long
+    -审核人 : long
+    -结论 : 枚举(通过/驳回)
+    -驳回理由 : string
+    -审核时间 : datetime
+  }
+}
+
+package "预售预约（M3）" as P3 {
+  class "预约 Reservation" as Reservation {
+    -预约编号 : long
+    -定金金额 : decimal
+    -尾款金额 : decimal
+    -有效期截止 : datetime
+    -状态 : 枚举(7 态)
+    -预约时间 : datetime
+    -卖家确认时间 : datetime
+    -到货时间 : datetime
+    +支付定金()
+    +卖家确认()
+    +确认到货()
+    +支付尾款()
+    +取消()
+    +定金是否可退() : boolean
+  }
+}
+
+package "交易与资金（M4）" as P4 {
+  class "订单 Order" as Order {
+    -订单号 : string
+    -成交金额 : decimal
+    -手续费 : decimal
+    -状态 : 枚举(8 态)
+    -下单时间 : datetime
+    +支付()
+    +发货()
+    +确认收货()
+    +计算手续费() : decimal
+  }
+  class "支付单 Payment" as Payment {
+    -支付单号 : string
+    -支付通道 : 枚举(支付宝/微信)
+    -实付金额 : decimal
+    -状态 : 枚举(3 态)
+    +发起支付()
+    +处理回调(流水号) : boolean
+  }
+  class "托管流水 EscrowRecord" as EscrowRecord {
+    -流水号 : string
+    -类型 : 枚举(冻结/放款/退款)
+    -金额 : decimal
+    -发生时间 : datetime
+  }
+  class "退款单 Refund" as Refund {
+    -退款单号 : string
+    -退款金额 : decimal
+    -退款原因 : string
+    -状态 : 枚举(3 态)
+  }
+}
+
+package "评价 · 沟通 · 日志（M6 / M5 / M7）" as P5 {
+  class "评价 Review" as Review {
+    -评价编号 : long
+    -评分 : int
+    -内容 : string
+    -是否自动好评 : boolean
+    -可修改截止 : datetime
+  }
+  class "会话 Conversation" as Conversation {
+    -会话编号 : long
+    -创建时间 : datetime
+  }
+  class "消息 Message" as Message {
+    -消息编号 : long
+    -内容 : string
+    -发送时间 : datetime
+  }
+  class "操作日志 OperationLog" as OperationLog {
+    -日志编号 : long
+    -操作类型 : 枚举(17 类)
+    -操作对象 : string
+    -结果 : 枚举(成功/失败)
+    -操作时间 : datetime
+  }
+}
+
+' ===== 簇内关系 =====
+Product "1" *-- "1..*" ProductImage : 包含
+Product "0..*" -- "1" Category : 属于
+Product "0..*" -- "0..*" Tag : 标注
+Product "1" -- "0..*" AuditRecord : 审核留痕
+Order "1" -- "1" Payment : 对应
+Payment "1" -- "0..*" EscrowRecord : 产生
+Order "1" -- "0..1" Refund : 退款
+Order "1" -- "0..1" Review : 一单一评
+Conversation "1" *-- "1..*" Message : 包含
+
+' ===== 簇间关系（只保留必须表达的归属与流转）=====
+User "1" -- "0..*" Product : 发布
+User "1" -- "0..*" Order : 购买
+User "1" -- "0..*" Reservation : 预约
+User "1" -- "0..*" OperationLog : 产生
+Product "1" -- "0..*" Reservation : 被预约
+Product "1" -- "0..*" Order : 被下单
+Product "1" -- "0..*" Conversation : 围绕
+Reservation "0..*" -- "0..1" Order : 转成订单
+
+@enduml

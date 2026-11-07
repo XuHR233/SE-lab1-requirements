@@ -1,0 +1,71 @@
+@startuml
+' 实验二 · 二手交易系统 · 用例图
+' 布局手法：together 把参与者钉成一列、把用例钉成一列
+left to right direction
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+together {
+  actor "游客\n（未登录）" as Guest
+  actor "登录用户\n（买家 ∪ 卖家）" as Login
+  actor "买家" as Buyer
+  actor "卖家" as Seller
+  actor "管理员" as Admin
+}
+
+rectangle "二手交易系统" {
+  together {
+    usecase "浏览与搜索商品" as UC01
+    usecase "查看商品详情" as UC02
+    usecase "注册 / 登录" as UC03
+    usecase "交易沟通" as UC04
+    usecase "下单并支付" as UC05
+    usecase "预约预售商品" as UC06
+    usecase "确认收货与评价" as UC07
+    usecase "发布与修改商品" as UC08
+    usecase "下架商品" as UC09
+    usecase "查看销售统计" as UC10
+    usecase "审核商品" as UC11
+    usecase "违规处置与日志查询" as UC12
+  }
+}
+
+Guest --> UC01
+Guest --> UC02
+Guest --> UC03
+
+Login --> UC01
+Login --> UC02
+Login --> UC04
+
+Buyer --> UC05
+Buyer --> UC06
+Buyer --> UC07
+
+Seller --> UC08
+Seller --> UC09
+Seller --> UC10
+
+Admin --> UC11
+Admin --> UC12
+
+Buyer --|> Login
+Seller --|> Login
+
+note right of UC02
+  <b>游客与登录用户的权限分界（REQ-002）</b>
+  游客只看已发布 / 已预售商品的列表、标题、价格、
+  图片摘要、标签；看不到草稿、待审核、已驳回、
+  已下架、违规下架商品；不能下单、支付、聊天，
+  也看不到卖家联系方式。登录后交易类用例才可用。
+end note
+
+note right of UC08
+  发布可先存草稿；修改一律回到待审核（REQ-007）；
+  交易中、或预售且有有效预约的商品禁止修改。
+end note
+
+@enduml

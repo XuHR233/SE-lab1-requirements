@@ -1,0 +1,48 @@
+@startuml
+' 实验二 · 二手交易系统 · 状态图（一）成交主线：草稿 → 审核 → 上架/预售 两支 → 交易中 → 售出 / 下架
+' 本图 9 条 + 状态图2 11 条 = REQ-010 允许的 20 条转换（不重复、不遗漏）
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam nodesep 55
+skinparam ranksep 65
+skinparam ArrowColor #4B7A5E
+skinparam state {
+  BackgroundColor #F7FBF7
+  BorderColor #4B7A5E
+  FontSize 13
+}
+hide empty description
+
+state "草稿" as S1
+state "待审核" as S2
+state "已发布\n<b>上架售卖</b>" as S4
+state "已预售\n<b>只接受预约</b>" as S5
+state "交易中\n（已锁货）" as S6
+state "已售出" as S7
+state "已下架\n（卖家自主）" as S8
+
+[*] --> S1 : 卖家新建
+S1 --> S2 : 提交审核
+S2 --> S4 : 审核通过·上架
+S2 --> S5 : 审核通过·预售
+
+S4 --> S6 : 支付成功（锁货）
+S5 --> S6 : 尾款成功
+S6 --> S7 : 确认收货 / 7 天自动确认
+
+S4 --> S8 : 卖家下架
+S5 --> S8 : 卖家下架（先退定金）
+S6 --> S8 : 管理员裁定终止
+
+note right of S4
+  上架售卖：买家下单 → 15 分钟内支付成功才锁货转「交易中」；
+  未支付则订单自动取消，商品留在「已发布」。
+end note
+
+note right of S5
+  预售：只接受预约，付定金即锁货；卖家确认到货后
+  买家 24 小时内付尾款 → 生成订单并转「交易中」。
+end note
+
+@enduml
