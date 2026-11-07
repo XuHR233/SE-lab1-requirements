@@ -1,0 +1,105 @@
+﻿@startuml
+' 实验二 · 二手交易系统 · 类图（一）用户 · 商品 · 预约（M1 / M2 / M3 / M7）
+' 依据：requirements.md REQ-001~010
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 12
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 16
+skinparam ranksep 34
+skinparam packageStyle rectangle
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #555555
+  ArrowColor #444444
+}
+skinparam packageBackgroundColor #FAFCFE
+skinparam packageBorderColor #9BB2C8
+
+package "用户与权限（M1）" as P1 {
+  class "用户 User" as User {
+    -用户编号 : long
+    -昵称 : string
+    -角色 : 枚举(普通用户·兼买家卖家 / 管理员 / 客服)
+    -账号状态 : 枚举(正常/冻结)
+    +注册()
+    +登录()
+    +校验权限(操作) : boolean
+  }
+}
+
+package "商品中心（M2）" as P2 {
+  class "商品 Product" as Product {
+    -商品编号 : string
+    -标题 : string
+    -价格 : decimal
+    -状态 : 枚举(10 态)
+    -创建时间 : datetime
+    +提交审核()
+    +修改()
+    +下架()
+    +检查状态转换(目标态) : boolean
+  }
+  class "商品图片 ProductImage" as ProductImage {
+    -图片编号 : long
+    -存储地址 : string
+    -顺序 : int
+  }
+  class "分类 Category" as Category {
+    -分类编号 : int
+    -名称 : string
+  }
+  class "标签 Tag" as Tag {
+    -标签编号 : int
+    -名称 : string
+  }
+  class "审核记录 AuditRecord" as AuditRecord {
+    -审核编号 : long
+    -审核人 : long
+    -结论 : 枚举(通过/驳回)
+    -驳回理由 : string
+    -审核时间 : datetime
+  }
+}
+
+package "日志（M7）" as P7 {
+  class "操作日志 OperationLog" as OperationLog {
+    -日志编号 : long
+    -操作人 : long
+    -操作类型 : 枚举(17 类)
+    -操作对象 : string
+    -结果 : 枚举(成功/失败)
+    -操作时间 : datetime
+  }
+}
+
+package "预售预约（M3）" as P3 {
+  class "预约 Reservation" as Reservation {
+    -预约编号 : long
+    -定金金额 : decimal
+    -尾款金额 : decimal
+    -有效期截止 : datetime
+    -状态 : 枚举(7 态)
+    -预约时间 : datetime
+    -卖家确认时间 : datetime
+    -到货时间 : datetime
+    +支付定金()
+    +卖家确认()
+    +确认到货()
+    +支付尾款()
+    +取消()
+    +定金是否可退() : boolean
+  }
+}
+
+User "1" -- "0..*" Product : 发布
+User -- Reservation : 预约
+User -- OperationLog : 产生日志
+
+Product "1" *-- "1..*" ProductImage : 包含
+Product "0..*" -- "1" Category : 属于
+Product "0..*" -- "0..*" Tag : 标注
+Product "1" -- "0..*" AuditRecord : 审核留痕
+Product -- Reservation : 被预约
+
+@enduml
