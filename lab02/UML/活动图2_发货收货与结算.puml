@@ -1,10 +1,10 @@
 @startuml
-' 实验二 · 二手交易系统 · 活动图 2/2：发货、收货与结算（卖家 · 平台 · 买家）
+' 实验二 · 二手交易系统 · 活动图 2/2：发货、收货、纠纷与结算（卖家 · 平台 · 买家 · 客服）
 ' 承接 活动图1_下单与支付，本图从「支付成功」之后开始。
 skinparam defaultFontName "Microsoft YaHei"
 skinparam defaultFontSize 12
 skinparam shadowing false
-skinparam swimlaneWidth 175
+skinparam swimlaneWidth 190
 skinparam activity {
   BackgroundColor #F6F9FF
   BorderColor #4A6FA5
@@ -22,7 +22,7 @@ start
 
 if (48 小时内发货？) then (否)
   |买家|
-  :可申请全额退款\n平台不向卖家放款;
+  :超过 48 小时：可申请全额退款（不需卖家同意）\n超过 15 天：系统自动全额退款\n两种情况商品 → 已下架，再走草稿重新上架;
   stop
 else (是)
 endif
@@ -31,7 +31,7 @@ endif
 :确认发货并填写物流单号;
 
 |平台系统|
-:订单 → 待收货\n（超过 48 小时未发货转可退款）;
+:订单 → 待收货（商品仍为交易中）;
 
 |买家|
 if (收货后 7 天内主动确认？) then (是)
@@ -40,10 +40,24 @@ else (否)
 endif
 
 |平台系统|
-:第 7 天到期自动确认收货\n（确认前 3 天发短信提醒）;
+if (出现质量问题或疑似纠纷？) then (是)
+  |客服|
+  :受理介入，订单 → 纠纷中\n纠纷期间不自动确认、不自动放款;
+  if (裁定结果？) then (退款)
+    |平台系统|
+    :订单 → 已退款\n商品 → 已下架;
+    stop
+  else (继续履约)
+  endif
+else (否)
+  |平台系统|
+  :到期自动确认收货\n普通订单：发货满 7 天（前 3 天短信提醒）\n预售订单：卖家「确认到货」次日 00:00 起满 1 天;
+endif
+
+|平台系统|
 :订单 → 已完成，商品 → 已售出;
 :发「放款」指令\n成交额 1.5%，单笔封顶 200 元;
-:开放买卖双方互评\n14 天内一单一评;
+:开放买卖双方互评，14 天内一单一评;
 stop
 
 @enduml
