@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 1 · 登录 / 注册</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .auth{display:flex;height:1000px}
+  .brandside{width:620px;background:linear-gradient(150deg,#2a2f3d,#1b1f2a 60%,#3a2418);color:#fff;padding:64px 56px;display:flex;flex-direction:column}
+  .brandside .logo{font-size:22px;color:#fff}
+  .brandside .logo span{color:#ff8a5c}
+  .brandside h2{font-size:34px;line-height:1.35;margin:72px 0 18px;letter-spacing:1px}
+  .brandside p.lead{color:#b9bfcc;font-size:14.5px;line-height:1.9;max-width:430px}
+  .brandside ul{margin-top:44px;display:grid;gap:18px;list-style:none}
+  .brandside li{display:flex;gap:12px;color:#d6dae3;font-size:13.5px}
+  .brandside li i{width:22px;height:22px;border-radius:50%;background:rgba(255,138,92,.16);color:#ff8a5c;font-style:normal;font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 22px}
+  .brandside .foot{margin-top:auto;color:#7c8496;font-size:12px}
+  .formside{flex:1;display:flex;align-items:center;justify-content:center;background:#fff}
+  .box{width:400px}
+  .box h1{font-size:24px;margin-bottom:6px}
+  .box .sub{color:var(--sub);font-size:13px;margin-bottom:26px}
+  .tabsline{display:flex;gap:30px;border-bottom:1px solid var(--line);margin-bottom:26px}
+  .tabsline div{padding-bottom:10px;font-size:15px;color:var(--sub);cursor:pointer}
+  .tabsline div.on{color:var(--ink);font-weight:700;border-bottom:2px solid var(--brand)}
+  .code{display:flex;gap:10px}
+  .code .input{flex:1}
+  .code .btn{height:40px;border-radius:8px;padding:0 14px;color:var(--brand);border-color:#ffd3c2;background:var(--brand-weak);font-size:13px}
+  .agree{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--sub);margin:6px 0 20px}
+  .agree b{color:var(--ink);font-weight:600}
+  .checkbox{width:15px;height:15px;border:1px solid #c8cdd8;border-radius:3px;flex:0 0 15px;margin-top:2px}
+  .submit{width:100%;height:44px;border-radius:8px;background:var(--brand);color:#fff;border:0;font-size:15px;font-weight:600;letter-spacing:1px}
+  .other{margin-top:22px;font-size:12.5px;color:var(--sub);display:flex;justify-content:space-between}
+  .hint{margin-top:22px;padding:12px 14px;border:1px dashed #ffd3c2;background:#fff9f6;border-radius:8px;font-size:12.5px;color:#a4562f;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="auth">
+  <aside class="brandside">
+    <div class="logo">二手<span>集市</span></div>
+    <h2>闲置有个好去处<br>买卖都在一个账号里</h2>
+    <p class="lead">同一个手机号只有一个账号，同一个人既可以发布闲置，也可以买别人的闲置——不区分买家版和卖家版。</p>
+    <ul>
+      <li><i>1</i><span>发布闲置 → 平台人工审核 → 上架可搜索</span></li>
+      <li><i>2</i><span>支付宝 / 微信担保交易，货款由平台托管，确认收货后放款</span></li>
+      <li><i>3</i><span>预售商品可先付定金预约，到货后付尾款</span></li>
+    </ul>
+    <div class="foot">一期仅网页端 ｜ 平台不沉淀资金、不做自建支付</div>
+  </aside>
+
+  <main class="formside">
+    <div class="box">
+      <h1>欢迎回来</h1>
+      <div class="sub">登录后可以发布商品、下单、预约和管理订单</div>
+
+      <div class="tabsline">
+        <div class="on">验证码登录</div>
+        <div>密码登录</div>
+        <div>注册</div>
+      </div>
+
+      <div class="field">
+        <label class="label">手机号</label>
+        <div class="input focus">138 0013 8000</div>
+      </div>
+
+      <div class="field">
+        <label class="label">短信验证码</label>
+        <div class="code">
+          <div class="input">6 位验证码</div>
+          <button class="btn">获取验证码</button>
+        </div>
+        <div class="small muted" style="margin-top:6px">验证码 5 分钟内有效，60 秒后可重新获取</div>
+      </div>
+
+      <div class="agree">
+        <span class="checkbox"></span>
+        <span>已阅读并同意 <b>《用户协议》</b> 与 <b>《隐私政策》</b>；未注册的手机号将自动创建账号</span>
+      </div>
+
+      <button class="submit">登 录</button>
+
+      <div class="other">
+        <span>遇到登录问题？联系客服</span>
+        <span>游客可先 <b style="color:var(--brand)">浏览商品</b></span>
+      </div>
+
+      <div class="hint">未登录（游客）只能浏览、搜索、查看商品详情与注册登录；下单、预约、聊天、评价等入口点击后跳转到本页。</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

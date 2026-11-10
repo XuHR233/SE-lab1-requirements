@@ -3,19 +3,23 @@
 ' 画法取舍：旧版把下单→支付→发货→收货→结算 15 步塞进一张单列竖图（388×1543），
 '           贴进 A4 只剩中间一条、两侧全空。改法：①换泳道，把纵向流程摊成横向责任带；
 '           ②按业务阶段拆成两张（本图到支付成功为止），每张比例接近 A4 版心。
+' 口径变更：下单即原子锁货（REQ-013），不再「支付回调抢锁」；支付回调只校验
+'           当前订单仍为待付款且商品仍为待付款锁定，迟到支付原路退回。
 skinparam defaultFontName "Microsoft YaHei"
-skinparam defaultFontSize 12
+skinparam defaultFontSize 16
 skinparam shadowing false
-skinparam swimlaneWidth 175
+skinparam swimlaneWidth 220
 skinparam activity {
   BackgroundColor #F6F9FF
   BorderColor #4A6FA5
   DiamondBackgroundColor #FFF7E0
+  FontSize 16
 }
 skinparam swimlane {
   BorderColor #9BB2C8
   BackgroundColor #FCFDFF
   TitleFontColor #33506B
+  TitleFontSize 16
 }
 
 |买家|
@@ -23,37 +27,45 @@ start
 :在商品详情页点击「立即购买」;
 
 |平台系统|
-if (商品仍为已发布且无已支付订单？) then (否)
-  |买家|
-  :提示「商品已被抢先购买」\n不允许生成订单;
-  stop
+if (商品为已发布且无有效订单？) then (否)
+  |平台系统|
+  if (同一买家已有该商品待付款订单？) then (是)
+    :按 request_id 幂等返回原待付款订单\n不重复创建、不重复锁货;
+  else (否)
+    |买家|
+    :提示「商品已被抢先购买」或「已被预订」\n不生成订单;
+    stop
+  endif
 else (是)
+  |平台系统|
+  :同一事务内：创建订单（待付款，15 分钟有效）\n+ 商品 已发布 → 待付款锁定\n（UPDATE ... WHERE 状态=已发布，影响行数必须为 1）;
+  :商品从搜索与列表消失\n仅买卖双方可从订单进入详情;
 endif
-
-|平台系统|
-:创建订单（待付款，15 分钟有效）\n记录 request_id 与商品版本号;
 
 |买家|
 :跳转第三方担保支付（支付宝 / 微信）;
 
 |支付机构|
-if (15 分钟内支付成功？) then (否)
-  |平台系统|
-  :订单自动取消（超时或买家主动取消）\n商品状态不变（下单不锁货，无需解锁）;
+:完成付款;
+
+|平台系统|
+if (15 分钟内收到支付回调？) then (否：超时或买家/卖家取消)
+  :订单 → 已取消\n商品 待付款锁定 → 已发布;
+  :恢复搜索与销售\n（卖家取消须记日志）;
   stop
 else (是)
 endif
-:异步回调到达;
 
-|平台系统|
 :验签 → 按 request_id 幂等去重 → 校验金额;
-if (该商品已有已支付有效订单？) then (是)
-  :本次支付标记「抢购失败」\n全额原路退款，商品状态不变;
+
+if (订单仍为待付款且商品仍为待付款锁定？) then (否)
+  :取消/超时已先生效\n本次支付标记「迟到支付」\n全额原路退回，订单保持已取消;
   stop
-else (否)
+else (是)
 endif
-:事务内抢锁：商品 已发布 → 交易中\n（UPDATE ... WHERE 状态=已发布，影响行数必须为 1）;
-:订单 待付款 → 已支付\n写托管流水（冻结）;
+
+:事务内推进：\n订单 待付款 → 待发货\n商品 待付款锁定 → 交易中;
+:写托管流水（冻结）;
 stop
 
 @enduml

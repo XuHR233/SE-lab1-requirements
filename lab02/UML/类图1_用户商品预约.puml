@@ -1,4 +1,4 @@
-﻿@startuml
+@startuml
 ' 实验二 · 二手交易系统 · 类图（一）用户 · 商品 · 预约（M1 / M2 / M3 / M7）
 ' 依据：requirements.md REQ-001~010
 skinparam defaultFontName "Microsoft YaHei"
@@ -33,12 +33,13 @@ package "商品中心（M2）" as P2 {
     -商品编号 : string
     -标题 : string
     -价格 : decimal
-    -状态 : 枚举(10 态)
+    -状态 : 枚举(11 态，含待付款锁定)
     -创建时间 : datetime
     +提交审核()
     +修改()
     +下架()
     +检查状态转换(目标态) : boolean
+    +是否对外可见() : boolean
   }
   class "商品图片 ProductImage" as ProductImage {
     -图片编号 : long
@@ -79,7 +80,7 @@ package "预售预约（M3）" as P3 {
     -定金金额 : decimal
     -尾款金额 : decimal
     -有效期截止 : datetime
-    -状态 : 枚举(7 态)
+    -状态 : 枚举(待付定金/待确认/待到货/待付尾款/已完成/已取消/已拒绝)
     -预约时间 : datetime
     -卖家确认时间 : datetime
     -到货时间 : datetime
@@ -89,6 +90,7 @@ package "预售预约（M3）" as P3 {
     +支付尾款()
     +取消()
     +定金是否可退() : boolean
+    +是否为有效预约() : boolean
   }
 }
 
@@ -100,6 +102,25 @@ Product "1" *-- "1..*" ProductImage : 包含
 Product "0..*" -- "1" Category : 属于
 Product "0..*" -- "0..*" Tag : 标注
 Product "1" -- "0..*" AuditRecord : 审核留痕
-Product -- Reservation : 被预约
+Product "1" -- "0..*" Reservation : 历史预约
+
+note bottom of Reservation
+  有效预约 = 待付定金 / 待确认 / 已确认（含待到货与待付尾款）；
+  提交预约即原子生成「待付定金」并立即锁货，同一商品同时最多 1 条有效预约，
+  其余历史预约不受数量限制；待付定金 15 分钟未支付则关闭预约并放货；
+  卖家确认后买家取消或尾款逾期，定金不退但预约关闭并放货。
+  定金与尾款资金单据由 M4 记录。
+end note
+
+note bottom of Product
+  <b>可见性与可操作性要分三层看</b>
+  ① 状态字段：11 态（草稿/待审核/已驳回/已发布/已预售/待付款锁定/交易中/已售出/已下架/违规下架/已删除）；
+  ② 商品字段仍为「已预售」不等于可见——存在有效预约时商品从搜索与列表隐藏，
+     仅买卖双方可从预约或订单进入详情，他人不可见、不可预约、不可下单；
+  ③ 待付款锁定期间同样隐藏，仅买卖双方可从订单进入；
+     预约取消/拒绝/过期后恢复已预售与公开可见；买家/卖家取消订单或支付超时后
+     恢复已发布与公开可见；管理员违规处置产生的订单取消不恢复公开销售。
+  即「已预售」是字段口径，「是否对外可见」要由状态 + 是否存在有效预约/有效订单共同决定。
+end note
 
 @enduml

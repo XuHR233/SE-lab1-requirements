@@ -1,0 +1,58 @@
+@startuml
+' 实验二 · 二手交易系统 · 时序图（二）：预售预约、定金、尾款与订单生成
+' 预约号贯穿定金和尾款；尾款成功后才生成订单。只表达设计层业务消息。
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #4A6FA5
+  LifeLineBorderColor #999999
+  ParticipantBackgroundColor #F4F8FF
+  ParticipantBorderColor #4A6FA5
+}
+autonumber
+
+actor "买家" as Buyer
+actor "卖家" as Seller
+participant "M3 预售预约" as Reservation
+participant "M4 交易与资金" as Trade
+participant "M2 商品中心" as Product
+participant "支付机构" as Pay
+
+Buyer -> Reservation : 提交预约
+Reservation -> Product : 校验已预售且无有效预约，锁货
+Product --> Reservation : 锁定成功
+Reservation -> Reservation : 创建待付定金预约，启动 15 分钟支付窗口
+Reservation --> Buyer : 返回预约号
+
+alt 定金支付与预约确认正常推进
+  Buyer -> Trade : 按预约号支付定金
+  Trade -> Pay : 提交定金支付单
+  Pay --> Trade : 定金支付成功
+  Trade --> Reservation : 回传定金结果
+  Reservation --> Buyer : 预约转待确认
+
+  Seller -> Reservation : 确认预约
+  Reservation --> Buyer : 预约转待到货
+  Seller -> Reservation : 确认到货
+  Reservation --> Buyer : 预约转待付尾款
+
+  Buyer -> Trade : 按预约号支付尾款
+  Trade -> Pay : 提交尾款支付单
+  Pay --> Trade : 尾款支付成功
+  Trade -> Trade : 创建待发货订单，保存来源预约号
+  Trade --> Reservation : 回传尾款结果与订单号
+  Reservation -> Product : 商品由已预售转交易中
+  Trade --> Buyer : 返回订单号与待发货订单
+
+else 定金超时，或确认前取消 / 拒绝
+  opt 已收定金
+    Reservation -> Trade : 按预约号申请退定金
+    Trade -> Pay : 原路退定金
+  end
+  Reservation -> Product : 解除预约锁货
+  Product --> Reservation : 商品保持已预售，恢复公开可见
+  Reservation --> Buyer : 预约关闭，可重新预约
+end
+
+@enduml

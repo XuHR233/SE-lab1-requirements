@@ -1,8 +1,7 @@
-﻿@startuml
-' 实验二 · 二手交易系统 · 状态图（一）成交主线：草稿 → 审核 → 上架/预售 两支 → 交易中 → 售出 / 下架
-' 本图 9 条 + 状态图2 11 条 = REQ-010 允许的 20 条转换（不重复、不遗漏）
-' 可见性口径（据 REQ-005「通过则进入已发布或已预售并对外可见」+ REQ-012）：对外可见只有已发布、已预售；
-' 交易中与已售出都不进搜索结果与列表，仅订单双方可从订单进入详情，他人与游客返回「商品不存在或已下架」。
+@startuml
+' 实验二 · 二手交易系统 · 状态图（一）成交主线
+' 本图 13 条业务转换（不含初始伪状态与隐藏布局线），状态图2 另含 12 条，合计 REQ-010 的 25 条。
+' 可见性、锁货限制与退款说明放在实验报告 4.3，不在图内堆叠注释。
 skinparam defaultFontName "Microsoft YaHei"
 skinparam defaultFontSize 13
 skinparam shadowing false
@@ -18,39 +17,31 @@ hide empty description
 
 state "草稿" as S1
 state "待审核" as S2
-state "已发布\n<b>上架售卖</b>" as S4
-state "已预售\n<b>只接受预约</b>" as S5
-state "交易中\n（已锁货）" as S6
+state "已发布\n<b>普通商品</b>" as S4
+state "已预售\n<b>预售商品</b>" as S5
+state "待付款锁定\n<b>下单即锁货</b>" as SLOCK
+state "交易中\n（已收款）" as S6
 state "已售出" as S7
-state "已下架\n（卖家自主）" as S8
+state "已下架\n（卖家自主 / 裁定终止）" as S8
 
 [*] --> S1 : 卖家新建
 S1 --> S2 : 提交审核
-S2 --> S4 : 审核通过·上架
-S2 --> S5 : 审核通过·预售
+S2 -down-> S4 : 审核通过·上架
+S2 -down-> S5 : 审核通过·预售
+S4 -[hidden]right-> S5
 
-S4 --> S6 : 支付成功（锁货）
-S5 --> S6 : 尾款成功
-S6 --> S7 : 确认收货 / 7 天自动确认
+S4 -down-> SLOCK : 创建订单并锁货
+SLOCK -down-> S6 : 支付成功
+S5 -down-> S6 : 尾款成功生成订单
+S6 -down-> S7 : 确认收货 / 发货满 7 天
 
-S4 --> S8 : 卖家下架
-S5 --> S8 : 卖家下架（先退定金）
-S6 --> S8 : 未发货全额退款（含 15 天自动）/ 管理员裁定终止
+SLOCK -up-> S4 : 取消 / 超时放货
+S6 -up-> S4 : 未发货退款（普通）
+S6 -up-> S5 : 未发货退款（预售）
 
-
-note right of S4
-  上架售卖：买家下单 → 15 分钟内支付成功才锁货转「交易中」；
-  未支付则订单自动取消，商品留在「已发布」。
-end note
-
-note bottom of S6
-  商品「交易中」覆盖订单三种状态：待发货 / 待收货 / 纠纷中；
-  发货与客服介入只推进订单，不改商品状态。
-end note
-
-note right of S5
-  预售：只接受预约，付定金即锁货；卖家确认到货后
-  买家 24 小时内付尾款 → 生成订单并转「交易中」。
-end note
+S4 -down-> S8 : 卖家下架
+S5 -down-> S8 : 卖家下架（先退定金）
+S6 -down-> S8 : 已发货后裁定终止或退款
+S7 -[hidden]right-> S8
 
 @enduml

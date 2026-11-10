@@ -1,0 +1,107 @@
+/* 实验二 UI 界面图公共样式：所有界面共用这一份 token，改一处全局生效 */
+:root{
+  --ink:#1f2430; --sub:#6b7280; --line:#e6e8ee; --bg:#f5f6f8; --card:#ffffff;
+  --brand:#ff5a1f; --brand-weak:#fff1ec;
+  --ok:#0f9d58; --ok-weak:#e8f6ee;
+  --warn:#b7791f; --warn-weak:#fdf6e3;
+  --danger:#d93a3a; --danger-weak:#fdecec;
+  --info:#2b6ef2; --info-weak:#eaf1fe;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  width:1440px;height:1000px;overflow:hidden;background:var(--bg);color:var(--ink);
+  font:14px/1.55 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+/* 顶栏 */
+.topbar{height:60px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:28px;padding:0 32px}
+.logo{font-size:19px;font-weight:700;letter-spacing:.5px}
+.logo span{color:var(--brand)}
+.search{flex:0 0 460px;height:36px;background:var(--bg);border:1px solid var(--line);border-radius:18px;display:flex;align-items:center;padding:0 16px;color:var(--sub)}
+.nav{margin-left:auto;display:flex;align-items:center;gap:24px;color:var(--sub)}
+.nav .active{color:var(--ink);font-weight:600}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ffb199,#ff5a1f);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:600}
+/* 页体 */
+.wrap{display:flex;gap:24px;padding:24px 32px;height:940px}
+.main{flex:1;min-width:0}
+.side{width:300px;flex:0 0 300px}
+.crumb{color:var(--sub);font-size:13px;margin-bottom:14px}
+h1{font-size:22px;margin-bottom:18px}
+/* 卡片与状态 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.tabs{display:flex;gap:28px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 20px;margin-bottom:16px}
+.tab{height:46px;display:flex;align-items:center;color:var(--sub);font-size:14px;position:relative}
+.tab.on{color:var(--ink);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--brand)}
+.tab em{font-style:normal;margin-left:6px;font-size:12px;color:#fff;background:var(--brand);border-radius:9px;padding:0 6px}
+.badge{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:4px;font-size:12px;font-weight:600}
+.badge.ok{color:var(--ok);background:var(--ok-weak)} .badge.warn{color:var(--warn);background:var(--warn-weak)}
+.badge.danger{color:var(--danger);background:var(--danger-weak)} .badge.info{color:var(--info);background:var(--info-weak)}
+.badge.plain{color:var(--sub);background:var(--bg)}
+.order{margin-bottom:14px;overflow:hidden}
+.order-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--sub)}
+.order-head .shop{color:var(--ink);font-weight:600}
+.order-head .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.order-body{display:flex;gap:16px;padding:16px 18px;align-items:center}
+.thumb{width:92px;height:92px;border-radius:8px;flex:0 0 92px;background:linear-gradient(135deg,#e8ecf5,#cbd5e6);display:flex;align-items:center;justify-content:center;color:#8a94a6;font-size:12px}
+.meta{flex:1;min-width:0}
+.meta .title{font-size:15px;font-weight:600;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta .spec{color:var(--sub);font-size:13px;margin-bottom:8px}
+.meta .note{font-size:12px;color:var(--sub)}
+.price{text-align:right;flex:0 0 120px}
+.price b{font-size:17px}
+.price .qty{color:var(--sub);font-size:12px;margin-top:2px}
+.order-foot{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px dashed var(--line);background:#fcfcfd}
+.order-foot .tip{margin-right:auto;color:var(--sub);font-size:12.5px}
+.order-foot .tip strong{color:var(--brand);font-variant-numeric:tabular-nums}
+.btn{height:32px;padding:0 16px;border-radius:16px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+.btn.ghost{color:var(--sub)}
+.btn[disabled]{color:#b9bec9;background:#f7f8fa;cursor:not-allowed}
+/* 侧栏 */
+.panel{padding:18px;margin-bottom:16px}
+.panel h3{font-size:14px;margin-bottom:12px}
+.panel p{color:var(--sub);font-size:13px;margin-bottom:10px}
+.panel .row{display:flex;justify-content:space-between;color:var(--sub);font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.panel .row:last-child{border:0}
+.panel .row b{color:var(--ink);font-variant-numeric:tabular-nums}
+/* 状态图例（报告里可直接引用这张图的说明） */
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---- 通用补充：表单 / 表格 / 统计 / 列表 ---- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--sub);font-weight:600;background:#fafbfc;font-size:12.5px}
+td.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--sub)}
+.small{font-size:12px}
+.tiny{font-size:11px}
+.field{margin-bottom:16px}
+.label{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+.input{height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;display:flex;align-items:center;padding:0 12px;color:var(--sub);font-size:13.5px}
+.input.focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-weak);color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg span{height:32px;padding:0 14px;display:flex;align-items:center;font-size:13px;color:var(--sub);background:#fff}
+.seg span.on{background:var(--brand-weak);color:var(--brand);font-weight:600}
+.sel{height:34px;border:1px solid var(--line);border-radius:8px;background:#fff;display:inline-flex;align-items:center;gap:24px;padding:0 12px;font-size:12.5px;color:var(--sub)}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.toolbar .grow{flex:1}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.stat{padding:16px 18px}
+.stat .k{font-size:12.5px;color:var(--sub);margin-bottom:8px}
+.stat .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:13px;font-weight:400;color:var(--sub);margin-left:4px}
+.stat .d{font-size:12px;color:var(--sub);margin-top:6px}
+.bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--brand)}
+.steps{display:flex;align-items:flex-start;margin:6px 0 2px}
+.step{flex:1;position:relative;text-align:center;font-size:12px;color:var(--sub)}
+.step::before{content:"";position:absolute;top:9px;left:0;right:0;height:2px;background:var(--line)}
+.step:first-child::before{left:50%} .step:last-child::before{right:50%}
+.step i{position:relative;display:block;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid var(--line);margin:0 auto 8px}
+.step.done i{background:var(--ok);border-color:var(--ok)}
+.step.now i{background:#fff;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-weak)}
+.step.now{color:var(--ink);font-weight:600}
+.step b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}
+.pager{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:14px;font-size:12.5px;color:var(--sub)}
+.pager b{color:var(--ink)}

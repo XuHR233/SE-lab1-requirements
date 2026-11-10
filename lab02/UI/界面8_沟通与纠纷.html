@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 8 · 商品咨询会话与纠纷介入（M5）</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .chat{display:flex;flex-direction:column;height:800px;overflow:hidden}
+  .chat-head{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .chat-head .pimg{width:56px;height:56px;border-radius:8px;flex:0 0 56px;background:linear-gradient(135deg,#e8ecf5,#cbd5e6)}
+  .chat-head .t{font-size:14.5px;font-weight:600;margin-bottom:4px}
+  .chat-head .m{font-size:12.5px;color:var(--sub)}
+  .chat-head .right{margin-left:auto;text-align:right}
+  .chat-head .right b{font-size:17px;font-variant-numeric:tabular-nums}
+  .chat-head .right div{font-size:12px;color:var(--sub);margin-top:2px}
+  .msgs{flex:1;overflow:hidden;padding:12px 18px;background:#fafbfc}
+  .sys{text-align:center;font-size:12px;color:var(--sub);margin-bottom:11px}
+  .sys span{background:#eef0f4;border-radius:10px;padding:3px 10px}
+  .msg{display:flex;gap:10px;margin-bottom:11px;align-items:flex-start}
+  .msg .who{width:32px;height:32px;border-radius:50%;flex:0 0 32px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#9aa4b2}
+  .msg .who.s{background:linear-gradient(135deg,#ffb199,#ff5a1f)}
+  .msg .who.c{background:#2b6ef2}
+  .bubble{max-width:520px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px;line-height:1.6}
+  .bubble .when{display:block;font-size:11.5px;color:#9aa4b2;margin-top:6px}
+  .msg.me{flex-direction:row-reverse}
+  .msg.me .bubble{background:var(--brand-weak);border-color:#ffd9cb}
+  .msg.cs .bubble{background:var(--info-weak);border-color:#cfe0fd}
+  .bubble .img{width:170px;height:58px;border-radius:6px;margin-top:8px;background:linear-gradient(135deg,#e8ecf5,#cbd5e6);display:flex;align-items:center;justify-content:center;color:#8a94a6;font-size:12px}
+  .alert{display:flex;align-items:center;gap:12px;margin-bottom:11px;padding:9px 12px;border-radius:8px;background:var(--warn-weak);border:1px solid #f0dfae;font-size:12.5px;color:#7a5a12}
+  .alert .grow{flex:1}
+  .inputbar{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line);background:#fff}
+  .inputbar .input{flex:1;height:40px}
+  .inputbar .tool{color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">二手<span>集市</span></div>
+  <div class="search">搜索商品、品牌、卖家</div>
+  <nav class="nav">
+    <span>首页</span><span>我的商品</span><span>我的订单</span><span>我的预约</span><span class="active">消息</span>
+    <span class="avatar">徐</span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <div class="crumb">消息 / 与卖家沟通（会话与商品绑定）</div>
+    <h1>与「数码小铺」的会话</h1>
+
+    <section class="chat card">
+      <div class="chat-head">
+        <div class="pimg"></div>
+        <div>
+          <div class="t">罗技 MX Master 3S 无线鼠标（98 新）</div>
+          <div class="m">会话号 CH-20261023-0091 ｜ 消息 6 条 ｜ 建立于 2026-10-23 09:40</div>
+        </div>
+        <div class="right">
+          <b>¥ 399.00</b>
+          <div>订单 2026102311090051 · 待收货</div>
+        </div>
+      </div>
+
+      <div class="msgs">
+
+        <div class="msg me">
+          <div class="who s">我</div>
+          <div class="bubble">你好，鼠标还在保修期内吗？电池能用多久？
+            <span class="when">2026-10-23 09:40</span></div>
+        </div>
+
+        <div class="msg">
+          <div class="who">卖</div>
+          <div class="bubble">还剩 3 个月保修，电池正常用 2 个月左右，配件齐全，可以拍给你看。
+            <span class="when">2026-10-23 09:44</span></div>
+        </div>
+
+        <div class="msg">
+          <div class="who">卖</div>
+          <div class="bubble">实拍图如下
+            <div class="img">商品实拍（图片消息）</div>
+            <span class="when">2026-10-23 09:48</span></div>
+        </div>
+
+        <div class="msg me">
+          <div class="who s">我</div>
+          <div class="bubble">收到货了，但滚轮有明显的漂移，蓝牙和接收器都一样，想退掉。
+            <span class="when">2026-10-26 20:15</span></div>
+        </div>
+
+        <div class="msg">
+          <div class="who">卖</div>
+          <div class="bubble">已经发货并且你签收了，按平台规则发货后不支持自助退款，你可以在线下找人检测。
+            <span class="when">2026-10-26 20:31</span></div>
+        </div>
+
+        <div class="alert">
+          <span>系统识别：双方就「已发货商品能否退款」存在争议，识别环节只做提示，不判定责任、不自动退款。</span>
+          <div class="grow"></div>
+          <button class="btn primary">请求客服介入</button>
+        </div>
+
+        <div class="sys"><span>你已请求客服介入，客服 李** 于 2026-10-26 20:40 受理 · 纠纷期间订单不自动确认、不放款</span></div>
+
+        <div class="msg cs">
+          <div class="who c">客服</div>
+          <div class="bubble">已介入，正在核对签收时间与聊天记录，请把检测报告拍照上传。
+            <span class="when">2026-10-26 20:42</span></div>
+        </div>
+      </div>
+
+      <div class="inputbar">
+        <span class="tool">图片</span>
+        <div class="input">输入消息，发送前请勿填写手机号等敏感信息</div>
+        <button class="btn primary">发送</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <div class="panel card">
+      <h3>会话规则</h3>
+      <p>会话与商品绑定，双方可查看全部聊天记录；客服与管理员只有在纠纷介入后才能按权限查看，无关第三方的请求一律拒绝。</p>
+      <p style="margin-bottom:0">聊天记录任何一方都不能单方面删除，只能在本地隐藏。</p>
+    </div>
+
+    <div class="panel card">
+      <h3>纠纷工单 D-20261026-0003</h3>
+      <div class="row"><span>工单状态</span><b>客服处理中</b></div>
+      <div class="row"><span>关联订单</span><b>2026102311090051</b></div>
+      <div class="row"><span>发起方式</span><b>买家请求</b></div>
+      <div class="row"><span>同一订单工单</span><b>仅 1 张</b></div>
+      <div class="row"><span>订单与资金</span><b>暂停自动履约</b></div>
+    </div>
+
+    <div class="panel card">
+      <h3>客服权限边界</h3>
+      <div class="row"><span>退款</span><b>可执行</b></div>
+      <div class="row"><span>封号</span><b>不可</b></div>
+      <div class="row"><span>下架商品</span><b>不可</b></div>
+      <div class="row"><span>处理说明</span><b>必填并留痕</b></div>
+      <p style="margin:12px 0 0">裁定为退款时订单转已退款、商品转已下架；裁定继续履约则恢复原流程。识别误报时用户可忽略提示，不影响正常流程。</p>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

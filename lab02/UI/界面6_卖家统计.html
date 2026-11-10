@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 6 · 卖家数据统计</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .chart{display:flex;align-items:flex-end;gap:18px;height:180px;padding:25px 8px 0}
+  .chart .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px}
+  .chart .col i{display:block;width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#ffb199,#ff5a1f)}
+  .chart .col.off i{background:#e6e8ee}
+  .chart .col span{font-size:11.5px;color:var(--sub)}
+  .chart .col b{font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .two{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}
+  .panel2{padding:18px 20px}
+  .panel2 h3{font-size:14px;margin-bottom:4px}
+  .panel2 .d{font-size:12px;color:var(--sub);margin-bottom:8px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">二手<span>集市</span></div>
+  <div class="search">搜索商品、品牌、卖家</div>
+  <nav class="nav">
+    <span>首页</span><span class="active">我的商品</span><span>我的订单</span><span>我的预约</span><span>消息</span>
+    <span class="avatar">徐</span>
+  </nav>
+</header>
+
+<div class="wrap" style="display:block">
+  <div class="crumb">我的 / 卖家中心</div>
+  <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:18px">
+    <h1 style="margin:0">卖家数据统计</h1>
+    <span class="muted small">统计区间：2026-09-27 ~ 2026-10-26（近 30 天）</span>
+    <div style="flex:1"></div>
+    <div class="seg"><span class="on">近 30 天</span><span>近 7 天</span><span>本月</span></div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat card"><div class="k">成交笔数</div><div class="v">36<small>笔</small></div><div class="d">较上期 +5 笔</div></div>
+    <div class="stat card"><div class="k">成交金额</div><div class="v">¥18,420<small></small></div><div class="d">已扣除手续费 ¥276.30</div></div>
+    <div class="stat card"><div class="k">在架商品</div><div class="v">4<small>件</small></div><div class="d">已发布 3 · 已预售 1</div></div>
+    <div class="stat card"><div class="k">退款率</div><div class="v">2.8<small>%</small></div><div class="d">36 笔成交中退款 1 笔</div></div>
+  </div>
+
+  <div class="two">
+    <div class="panel2 card">
+      <h3>近 7 日成交量与成交额</h3>
+      <div class="d">仅统计"已完成"订单；已取消、已退款、纠纷中不计入成交。近 30 天合计 36 笔</div>
+      <div class="chart">
+        <div class="col"><b>2</b><i style="height:38px"></i><span>10-20</span></div>
+        <div class="col"><b>3</b><i style="height:56px"></i><span>10-21</span></div>
+        <div class="col"><b>1</b><i style="height:20px"></i><span>10-22</span></div>
+        <div class="col"><b>4</b><i style="height:76px"></i><span>10-23</span></div>
+        <div class="col"><b>2</b><i style="height:38px"></i><span>10-24</span></div>
+        <div class="col off"><b>0</b><i style="height:6px"></i><span>10-25</span></div>
+        <div class="col"><b>3</b><i style="height:56px"></i><span>10-26</span></div>
+      </div>
+      <div class="small muted" style="margin-top:14px;border-top:1px dashed var(--line);padding-top:12px">
+        峰值出现在 10-23（4 笔 / ¥1,840）；10-25 无成交，柱状图显示为 0 而不是空白。
+      </div>
+    </div>
+
+    <div class="panel2 card">
+      <h3>成交构成</h3>
+      <div class="d">按商品分类汇总成交金额</div>
+      <div style="margin:14px 0">
+        <div class="small" style="display:flex;justify-content:space-between"><span>数码 / 影音</span><b>¥9,860 · 53.5%</b></div>
+        <div class="bar"><i style="width:53.5%"></i></div>
+      </div>
+      <div style="margin:14px 0">
+        <div class="small" style="display:flex;justify-content:space-between"><span>数码 / 平板</span><b>¥5,600 · 30.4%</b></div>
+        <div class="bar"><i style="width:30.4%"></i></div>
+      </div>
+      <div style="margin:14px 0">
+        <div class="small" style="display:flex;justify-content:space-between"><span>图书 / 教材</span><b>¥1,960 · 10.6%</b></div>
+        <div class="bar"><i style="width:10.6%"></i></div>
+      </div>
+      <div style="margin:14px 0">
+        <div class="small" style="display:flex;justify-content:space-between"><span>其他</span><b>¥1,000 · 5.4%</b></div>
+        <div class="bar"><i style="width:5.4%"></i></div>
+      </div>
+      <div class="small muted" style="border-top:1px dashed var(--line);padding-top:12px">新卖家无成交时，卡片显示 0 或 —，图表区提示"暂无数据"，不显示空坐标轴。</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;overflow:hidden">
+    <table>
+      <thead><tr><th>商品</th><th>成交时间</th><th>成交金额</th><th>手续费（1.5%）</th></tr></thead>
+      <tbody>
+        <tr><td>佳能 EOS 200D 单反套机</td><td class="num">2026-10-24 16:40</td><td class="num">¥4,050.00</td><td class="num">¥60.75</td></tr>
+        <tr><td>《软件工程：实践者的研究方法》第 8 版</td><td class="num">2026-10-23 11:27</td><td class="num">¥46.00</td><td class="num">¥0.69</td></tr>
+        <tr><td>罗技 K380 蓝牙键盘</td><td class="num">2026-10-22 15:02</td><td class="num">¥129.00</td><td class="num">¥1.94</td></tr>
+        <tr><td>迪卡侬 双人帐篷</td><td class="num">2026-10-21 09:48</td><td class="num">¥260.00</td><td class="num">¥3.90</td></tr>
+        <tr><td>《算法导论》第 3 版</td><td class="num">2026-10-20 18:33</td><td class="num">¥88.00</td><td class="num">¥1.32</td></tr>
+        <tr><td>小米 移动电源 20000mAh</td><td class="num">2026-10-19 20:05</td><td class="num">¥79.00</td><td class="num">¥1.19</td></tr>
+      </tbody>
+    </table>
+    <div class="small muted" style="padding:12px 18px;border-top:1px dashed var(--line)">
+      近 30 天共成交 36 笔，此处按时间倒序列出最近 6 笔；手续费按成交额 1.5% 计，单笔封顶 200 元，退款订单不计入成交。
+    </div>
+  </div>
+</div>
+</body>
+</html>

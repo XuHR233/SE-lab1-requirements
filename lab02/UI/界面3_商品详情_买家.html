@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 3 · 商品详情（买家）</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .detail{display:flex;gap:32px;padding:8px 0 0}
+  .gallery{width:470px;flex:0 0 470px}
+  .big{height:470px;border-radius:12px;background:linear-gradient(135deg,#dfe6f2,#b9c6da);display:flex;align-items:center;justify-content:center;color:#7d8ba1;font-size:14px;border:1px solid var(--line)}
+  .thumbs{display:flex;gap:10px;margin-top:12px}
+  .thumbs div{width:86px;height:86px;border-radius:8px;background:linear-gradient(135deg,#e8ecf5,#cbd5e6);border:2px solid transparent}
+  .thumbs div.on{border-color:var(--brand)}
+  .info{flex:1;min-width:0}
+  .info h1{font-size:22px;line-height:1.5;margin-bottom:12px}
+  .tags{display:flex;gap:8px;margin-bottom:18px}
+  .tag{font-size:12px;color:var(--sub);background:#fff;border:1px solid var(--line);border-radius:4px;padding:3px 9px}
+  .tag.hot{color:var(--brand);border-color:#ffd3c2;background:var(--brand-weak)}
+  .pricebox{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+  .pricebox .line1{display:flex;align-items:baseline;gap:12px}
+  .pricebox .line1 b{font-size:34px;color:var(--brand);letter-spacing:-.5px}
+  .pricebox .line1 s{color:#a3a9b6;font-size:14px}
+  .pricebox .line2{display:flex;gap:40px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;color:var(--sub)}
+  .pricebox .line2 b{display:block;color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums;margin-top:3px}
+  .seller{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:16px}
+  .seller .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ffb199,#ff5a1f);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
+  .seller .nm{font-weight:600;font-size:14px;margin-bottom:3px}
+  .seller .sub{font-size:12px;color:var(--sub)}
+  .seller .grow{flex:1}
+  .stepsbox{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 20px 20px;margin-bottom:16px}
+  .stepsbox h3{font-size:13.5px;margin-bottom:14px}
+  .actions{display:flex;gap:12px;margin-top:20px}
+  .actions .btn{height:44px;border-radius:8px;padding:0 26px;font-size:14px}
+  .actions .primary{flex:0 0 200px}
+  .notice{font-size:12px;color:var(--sub);margin-top:14px;line-height:1.9}
+  .notice b{color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">二手<span>集市</span></div>
+  <div class="search">搜索商品、品牌、卖家</div>
+  <nav class="nav">
+    <span>首页</span><span>我的商品</span><span>我的订单</span><span>我的预约</span><span>消息</span>
+    <span class="avatar">徐</span>
+  </nav>
+</header>
+
+<div class="wrap" style="display:block">
+  <div class="crumb">首页 / 数码 / 平板 ｜ 已有 142 人在本商品浏览</div>
+
+  <div class="detail">
+    <div class="gallery">
+      <div class="big">商品主图 · 实拍 6 张</div>
+      <div class="thumbs"><div class="on"></div><div></div><div></div><div></div><div></div></div>
+      <div class="notice">图片由卖家上传并经对象存储直传；平台一期不做图片智能审核，违规靠人工举报与巡检。</div>
+    </div>
+
+    <div class="info">
+      <h1>iPad Air 5 64G 深空灰 · 预售（已贴膜，无划痕）</h1>
+      <div class="tags">
+        <span class="tag hot">预售</span><span class="tag">数码 / 平板</span><span class="tag">平台标签：自用</span><span class="tag">保修剩余 3 个月</span>
+      </div>
+
+      <div class="pricebox">
+        <div class="line1"><b>¥ 2,800.00</b><s>原价 ¥ 4,399</s><span class="badge info" style="align-self:center">已预售 · 可预约</span></div>
+        <div class="line2">
+          <span>定金<b>¥ 200.00</b></span>
+          <span>尾款<b>¥ 2,600.00</b></span>
+          <span>预约有效期<b>2026-11-30 前</b></span>
+          <span>发货地<b>浙江 杭州</b></span>
+        </div>
+      </div>
+
+      <div class="seller">
+        <div class="av">林</div>
+        <div>
+          <div class="nm">林间数码 ｜ 实名认证</div>
+          <div class="sub">在售 6 件 · 累计成交 128 笔 · 退款率 1.6%</div>
+        </div>
+        <div class="grow"></div>
+        <button class="btn">进店逛逛</button>
+        <button class="btn ghost">联系卖家</button>
+      </div>
+
+      <div class="stepsbox">
+        <h3>预售怎么买：提交预约锁货 → 付定金 / 卖家确认 → 到货付尾款</h3>
+        <div class="steps">
+          <div class="step now"><i></i><b>① 提交预约并锁货</b><span>生成预约号，商品暂从公开列表隐藏</span></div>
+          <div class="step"><i></i><b>② 付定金，卖家确认</b><span>15 分钟内支付定金，再由卖家确认</span></div>
+          <div class="step"><i></i><b>③ 到货后付尾款</b><span>尾款支付成功才生成订单号</span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary">立即预约</button>
+        <button class="btn">加入收藏</button>
+        <button class="btn ghost">举报</button>
+      </div>
+
+      <div class="notice">
+        <b>预约与支付单：</b>提交预约生成预约号；定金、尾款分别生成支付单，尾款成功后才生成订单号并关联来源预约。
+        <b>定金规则：</b>卖家确认前取消预约，定金全额原路退回；卖家确认后取消或尾款逾期，定金不退。
+        <b>可见性：</b>待付款锁定、存在有效预约的已预售商品不在公开搜索和列表中出现，仅相关买卖双方可从订单或预约进入。
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 5 · 我的订单（买家）</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">二手<span>集市</span></div>
+  <div class="search">搜索商品、品牌、卖家</div>
+  <nav class="nav">
+    <span>首页</span><span>我的商品</span><span class="active">我的订单</span><span>我的预约</span><span>消息</span>
+    <span class="avatar">徐</span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <div class="crumb">我的 / 我的订单</div>
+    <h1>我的订单</h1>
+
+    <nav class="tabs">
+      <div class="tab">全部</div>
+      <div class="tab on">待付款<em>1</em></div>
+      <div class="tab">待发货</div>
+      <div class="tab">待收货</div>
+      <div class="tab">已完成</div>
+      <div class="tab">退款 / 纠纷</div>
+    </nav>
+
+    <!-- 待付款：15 分钟内未付自动取消（REQ-015） -->
+    <section class="order card">
+      <div class="order-head">
+        <span class="shop">数码小铺</span>
+        <span>订单号 2026102618340012</span>
+        <div class="right"><span class="badge danger">待付款</span></div>
+      </div>
+      <div class="order-body">
+        <div class="thumb">商品图</div>
+        <div class="meta">
+          <div class="title">索尼 WH-1000XM4 头戴式降噪耳机（95 新）</div>
+          <div class="spec">分类：数码 / 影音 ｜ 标签：自用、无拆修</div>
+          <div class="note">下单时间 2026-10-26 18:34 ｜ 支付方式：支付宝担保交易</div>
+        </div>
+        <div class="price"><b>¥ 1,280.00</b><div class="qty">数量 1</div></div>
+      </div>
+      <div class="order-foot">
+        <span class="tip">创建订单时已锁货；剩余支付时间 <strong>12:47</strong>，超时自动取消并放货</span>
+        <button class="btn ghost">取消订单</button>
+        <button class="btn primary">立即付款</button>
+      </div>
+    </section>
+
+    <!-- 待发货：创建订单已锁货，支付成功后卖家 48 小时内发货（REQ-016） -->
+    <section class="order card">
+      <div class="order-head">
+        <span class="shop">旧书仓</span>
+        <span>订单号 2026102520170038</span>
+        <div class="right"><span class="badge warn">待发货</span></div>
+      </div>
+      <div class="order-body">
+        <div class="thumb">商品图</div>
+        <div class="meta">
+          <div class="title">《软件工程：实践者的研究方法》第 8 版</div>
+          <div class="spec">分类：图书 / 教材 ｜ 交易方式：担保交易</div>
+          <div class="note">支付成功 2026-10-25 20:17 ｜ 货款已托管，确认收货后放款给卖家</div>
+        </div>
+        <div class="price"><b>¥ 46.00</b><div class="qty">数量 1</div></div>
+      </div>
+      <div class="order-foot">
+        <span class="tip">卖家需在 <strong>48 小时</strong>内发货，超时可申请全额退款；已等待 6 小时 12 分</span>
+        <button class="btn ghost">申请退款</button>
+        <button class="btn">提醒发货</button>
+      </div>
+    </section>
+
+    <!-- 待收货：7 天自动确认（REQ-016） -->
+    <section class="order card">
+      <div class="order-head">
+        <span class="shop">数码小铺</span>
+        <span>订单号 2026102311090051</span>
+        <div class="right"><span class="badge info">待收货</span></div>
+      </div>
+      <div class="order-body">
+        <div class="thumb">商品图</div>
+        <div class="meta">
+          <div class="title">罗技 MX Master 3S 无线鼠标</div>
+          <div class="spec">分类：数码 / 外设 ｜ 运单号：SF1234567890</div>
+          <div class="note">已发货 2026-10-23 11:09 ｜ 剩 4 天 8 小时自动确认收货</div>
+        </div>
+        <div class="price"><b>¥ 399.00</b><div class="qty">数量 1</div></div>
+      </div>
+      <div class="order-foot">
+        <span class="tip">已发货后不支持自助退款，质量问题可申请客服介入；确认收货后 14 天内可评价，发货满 <strong>7 天</strong>系统自动确认</span>
+        <button class="btn ghost">联系客服</button>
+        <button class="btn">查看物流</button>
+        <button class="btn primary">确认收货</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <div class="panel card">
+      <h3>担保交易</h3>
+      <p>付款后货款由平台托管，不直接进入卖家账户；买家确认收货（或发货满 7 天自动确认）后放款，平台按成交额 1.5% 收取手续费、单笔封顶 200 元。</p>
+      <div class="row"><span>待付款</span><b>1 笔</b></div>
+      <div class="row"><span>待发货</span><b>1 笔</b></div>
+      <div class="row"><span>待收货</span><b>1 笔</b></div>
+      <div class="row"><span>托管中货款</span><b>¥ 445.00</b></div>
+    </div>
+
+    <div class="panel card">
+      <h3>状态说明</h3>
+      <div class="legend">
+        <span class="badge danger">待付款</span>
+        <span class="badge warn">待发货</span>
+        <span class="badge info">待收货</span>
+        <span class="badge ok">已完成</span>
+        <span class="badge plain">已取消</span>
+        <span class="badge plain">已退款</span>
+        <span class="badge plain">纠纷中</span>
+      </div>
+      <p style="margin-top:12px">「待付款」由买卖双方取消，创建订单时已锁货；「待发货」可全额退款，普通商品恢复「已发布」、预售商品恢复「已预售」；「待收货」只能申请客服介入。</p>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

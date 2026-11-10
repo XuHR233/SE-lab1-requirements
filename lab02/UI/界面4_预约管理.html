@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面 4 · 预约管理（预售）</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  .res{margin-bottom:14px;overflow:hidden}
+  .res-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--sub)}
+  .res-head .buyer{color:var(--ink);font-weight:600}
+  .res-head .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .res-body{display:flex;gap:18px;padding:16px 18px}
+  .res-body .pimg{width:76px;height:76px;border-radius:8px;background:linear-gradient(135deg,#e8ecf5,#cbd5e6);flex:0 0 76px}
+  .res-main{flex:1;min-width:0}
+  .res-main .t{font-size:14.5px;font-weight:600;margin-bottom:6px}
+  .res-main .m{font-size:12.5px;color:var(--sub);margin-bottom:10px}
+  .money{display:flex;gap:26px;font-size:12.5px;color:var(--sub)}
+  .money b{display:block;color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums;margin-top:2px}
+  .money .paid{color:var(--ok)}
+  .res-foot{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px dashed var(--line);background:#fcfcfd}
+  .res-foot .tip{margin-right:auto;font-size:12.5px;color:var(--sub)}
+  .res-foot .tip strong{color:var(--brand)}
+  .steps.mini .step{font-size:11.5px}
+  .steps.mini .step b{font-size:12px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">二手<span>集市</span></div>
+  <div class="search">搜索商品、品牌、卖家</div>
+  <nav class="nav">
+    <span>首页</span><span>我的商品</span><span>我的订单</span><span class="active">我的预约</span><span>消息</span>
+    <span class="avatar">徐</span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <div class="crumb">我的 / 我的预约（卖家视角）</div>
+    <h1>预约管理</h1>
+
+    <nav class="tabs">
+      <div class="tab">待付定金<em>1</em></div>
+      <div class="tab on">待确认<em>1</em></div>
+      <div class="tab">已确认<em>1</em></div>
+      <div class="tab">已完成</div>
+      <div class="tab">已取消</div>
+      <div class="tab">已拒绝</div>
+      <div class="tab">已过期</div>
+    </nav>
+
+    <!-- 待确认：定金已付，卖家须在有效期内确认；拒绝或超时全额退定金 -->
+    <section class="res card">
+      <div class="res-head">
+        <span class="buyer">买家 陈**</span>
+        <span>预约号 RV-20261026-0031</span>
+        <span>提交于 2026-10-26 09:12</span>
+        <div class="right"><span class="badge danger">待确认</span></div>
+      </div>
+      <div class="res-body">
+        <div class="pimg"></div>
+        <div class="res-main">
+          <div class="t">iPad Air 5 64G 深空灰 · 预售</div>
+          <div class="m">买家留言：这周能到吗？我要带去上课用</div>
+          <div class="money">
+            <span>商品价<b>¥ 2,800.00</b></span>
+            <span>已收定金<b class="paid">¥ 200.00</b></span>
+            <span>待付尾款<b>¥ 2,600.00</b></span>
+            <span>预约有效期至<b>2026-11-30</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="res-foot">
+        <span class="tip">请在有效期内确认；超时未确认视为拒绝，系统<strong>全额退回定金</strong></span>
+        <button class="btn ghost">拒绝并退定金</button>
+        <button class="btn primary">确认预约</button>
+      </div>
+    </section>
+
+    <!-- 已确认：卖家点"确认到货"后，买家次日起 24 小时内付尾款 -->
+    <section class="res card">
+      <div class="res-head">
+        <span class="buyer">买家 王**</span>
+        <span>预约号 RV-20261022-0018</span>
+        <span>确认于 2026-10-23 15:40</span>
+        <div class="right"><span class="badge warn">已确认 · 待到货</span></div>
+      </div>
+      <div class="res-body">
+        <div class="pimg"></div>
+        <div class="res-main">
+          <div class="t">索尼 WH-1000XM4 头戴式降噪耳机 · 预售</div>
+          <div class="m">提交预约时已锁货；定金支付单关联本预约号，其他买家无法预约或下单</div>
+          <div class="money">
+            <span>已收定金<b class="paid">¥ 100.00</b></span>
+            <span>待付尾款<b>¥ 1,180.00</b></span>
+            <span>卖家确认已过<b>3 天 6 小时</b></span>
+            <span>尾款窗口<b>确认到货次日起 24 小时</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="res-foot">
+        <span class="tip">到货后点"确认到货"，系统<strong>次日 00:00 起</strong>给买家 24 小时付尾款</span>
+        <button class="btn primary">确认到货</button>
+      </div>
+    </section>
+
+    <!-- 已完成：尾款支付成功已生成订单 -->
+    <section class="res card">
+      <div class="res-head">
+        <span class="buyer">买家 李**</span>
+        <span>预约号 RV-20261010-0007</span>
+        <span>完成于 2026-10-18 10:02</span>
+        <div class="right"><span class="badge ok">已完成</span></div>
+      </div>
+      <div class="res-body">
+        <div class="pimg"></div>
+        <div class="res-main">
+          <div class="t">Kindle Paperwhite 4 8G · 预售</div>
+          <div class="m">尾款支付成功，已生成订单 2026101809580012，商品转"交易中"</div>
+          <div class="money">
+            <span>成交价<b>¥ 320.00</b></span>
+            <span>定金<b class="paid">¥ 50.00</b></span>
+            <span>尾款<b class="paid">¥ 270.00</b></span>
+            <span>手续费<b>¥ 4.80（1.5%）</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="res-foot">
+        <span class="tip">尾款到账后进入担保托管，买家确认收货或发货满 7 天自动确认后结算放款</span>
+        <button class="btn">查看订单</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <div class="panel card">
+      <h3>预约 7 个状态</h3>
+      <div class="legend">
+        <span class="badge warn">待付定金</span><span class="badge danger">待确认</span><span class="badge warn">已确认</span><span class="badge ok">已完成</span>
+        <span class="badge plain">已取消</span><span class="badge plain">已拒绝</span><span class="badge plain">已过期</span>
+      </div>
+      <p style="margin-top:12px">有效预约 = 待付定金、待确认或已确认。提交预约即锁货，同一商品只允许 1 条有效预约；待付定金 15 分钟超时或取消后直接放货。</p>
+    </div>
+
+    <div class="panel card">
+      <h3>定金什么时候退</h3>
+      <div class="row"><span>卖家确认前买家取消</span><b>全额退</b></div>
+      <div class="row"><span>卖家拒绝 / 超时未确认</span><b>全额退</b></div>
+      <div class="row"><span>定金支付超 15 分钟</span><b>释放预约</b></div>
+      <div class="row"><span>确认后买家取消</span><b>不退</b></div>
+      <div class="row"><span>确认后尾款逾期</span><b>不退</b></div>
+      <div class="row"><span>商品被违规下架</span><b>全额退</b></div>
+    </div>
+
+    <div class="panel card">
+      <h3>买家侧看到什么</h3>
+      <p>提交预约后商品即从公开列表隐藏；预约号不是支付单号，定金和尾款各有独立支付单。买家可查看尾款倒计时，逾期后预约关闭并放货，定金不退。</p>
+    </div>
+  </aside>
+</div>
+</body>
+</html>
