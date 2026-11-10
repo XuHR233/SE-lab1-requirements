@@ -1,5 +1,6 @@
-# 只提交作业要求的两个文件，其余一律忽略
+# 实验一仓库只跟踪需求、术语和对话材料，其余一律忽略
 *
 !.gitignore
 !requirements.md
+!CONTEXT.md
 !chat.txt
