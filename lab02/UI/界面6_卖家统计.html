@@ -7,8 +7,8 @@
 <style>
   .chart{display:flex;align-items:flex-end;gap:18px;height:180px;padding:25px 8px 0}
   .chart .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px}
-  .chart .col i{display:block;width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#ffb199,#ff5a1f)}
-  .chart .col.off i{background:#e6e8ee}
+  .chart .col i{display:block;width:100%;border-radius:6px 6px 0 0;background:var(--brand)}
+  .chart .col.off i{background:#e8e6e3}
   .chart .col span{font-size:11.5px;color:var(--sub)}
   .chart .col b{font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums}
   .two{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}
@@ -46,7 +46,7 @@
   <div class="two">
     <div class="panel2 card">
       <h3>近 7 日成交量与成交额</h3>
-      <div class="d">仅统计"已完成"订单；已取消、已退款、纠纷中不计入成交。近 30 天合计 36 笔</div>
+      <div class="d">仅统计已完成订单，不含已取消、已退款及纠纷中订单</div>
       <div class="chart">
         <div class="col"><b>2</b><i style="height:38px"></i><span>10-20</span></div>
         <div class="col"><b>3</b><i style="height:56px"></i><span>10-21</span></div>
@@ -57,7 +57,7 @@
         <div class="col"><b>3</b><i style="height:56px"></i><span>10-26</span></div>
       </div>
       <div class="small muted" style="margin-top:14px;border-top:1px dashed var(--line);padding-top:12px">
-        峰值出现在 10-23（4 笔 / ¥1,840）；10-25 无成交，柱状图显示为 0 而不是空白。
+        10 月 23 日成交最多：4 笔，成交额 ¥1,840。
       </div>
     </div>
 
@@ -80,7 +80,7 @@
         <div class="small" style="display:flex;justify-content:space-between"><span>其他</span><b>¥1,000 · 5.4%</b></div>
         <div class="bar"><i style="width:5.4%"></i></div>
       </div>
-      <div class="small muted" style="border-top:1px dashed var(--line);padding-top:12px">新卖家无成交时，卡片显示 0 或 —，图表区提示"暂无数据"，不显示空坐标轴。</div>
+
     </div>
   </div>
 
@@ -97,7 +97,7 @@
       </tbody>
     </table>
     <div class="small muted" style="padding:12px 18px;border-top:1px dashed var(--line)">
-      近 30 天共成交 36 笔，此处按时间倒序列出最近 6 笔；手续费按成交额 1.5% 计，单笔封顶 200 元，退款订单不计入成交。
+      最近 6 笔成交订单 · 手续费按成交额 1.5% 计算，单笔最高 200 元
     </div>
   </div>
 </div>
