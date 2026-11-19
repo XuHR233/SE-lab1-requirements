@@ -1,6 +1,24 @@
-# 实验一仓库只跟踪需求、术语和对话材料，其余一律忽略
+# 默认忽略，仅纳入实验一材料与实验二公开设计材料
 *
 !.gitignore
 !requirements.md
 !CONTEXT.md
 !chat.txt
+
+# 实验二：报告、PlantUML、UI 源文件与最终界面图
+!lab02/
+lab02/*
+!lab02/.gitignore
+!lab02/实验报告.md
+!lab02/实验报告.pdf
+!lab02/UML/
+lab02/UML/*
+!lab02/UML/*.puml
+!lab02/UML/*.png
+!lab02/UI/
+lab02/UI/*
+!lab02/UI/*.html
+!lab02/UI/*.css
+!lab02/UI界面/
+lab02/UI界面/*
+!lab02/UI界面/*.png
