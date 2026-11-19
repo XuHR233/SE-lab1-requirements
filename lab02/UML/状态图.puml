@@ -33,7 +33,7 @@ S4 -[hidden]right-> S5
 S4 -down-> SLOCK : 创建订单并锁货
 SLOCK -down-> S6 : 支付成功
 S5 -down-> S6 : 尾款成功生成订单
-S6 -down-> S7 : 确认收货 / 发货满 7 天
+S6 -down-> S7 : 确认收货 / 按订单类型自动确认
 
 SLOCK -up-> S4 : 取消 / 超时放货
 S6 -up-> S4 : 未发货退款（普通）

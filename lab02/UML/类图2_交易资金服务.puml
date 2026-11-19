@@ -99,7 +99,7 @@ Reservation "0..1" -- "0..1" Order : 尾款成功生成
 Order "0..1" -- "0..1" Refund : 订单退款
 Reservation "0..1" -- "0..1" Refund : 退定金
 Order "1" -- "0..1" Settlement : 结算
-Order "1" -- "0..1" Review : 一单一评
+Order "1" -- "0..2" Review : 双方各一评
 Order "1" -- "0..1" DisputeTicket : 纠纷工单
 Order "1" -- "1" Conversation : 交易沟通
 Payment "1" -- "0..*" EscrowRecord : 产生

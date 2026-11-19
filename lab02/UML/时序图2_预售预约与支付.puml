@@ -41,8 +41,10 @@ alt 定金支付与预约确认正常推进
   Trade -> Pay : 提交尾款支付单
   Pay --> Trade : 尾款支付成功
   Trade -> Trade : 创建待发货订单，保存来源预约号
+  Trade -> Product : 请求商品由已预售转交易中
+  Product --> Trade : 商品状态已更新
   Trade --> Reservation : 回传尾款结果与订单号
-  Reservation -> Product : 商品由已预售转交易中
+  Reservation -> Reservation : 预约状态：已完成
   Trade --> Buyer : 返回订单号与待发货订单
 
 else 定金超时，或确认前取消 / 拒绝
