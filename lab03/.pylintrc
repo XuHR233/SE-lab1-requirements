@@ -1,0 +1,22 @@
+[MAIN]
+load-plugins=pylint_django
+django-settings-module=config.settings
+fail-under=9.0
+jobs=0
+ignore=migrations,venv
+
+[MESSAGES CONTROL]
+# 只关与 Django 惯例冲突的两条，理由见报告 4.5 节
+disable=
+    missing-module-docstring,
+    too-few-public-methods
+
+[FORMAT]
+max-line-length=100
+max-module-lines=1000
+
+[DESIGN]
+max-args=6
+max-branches=12
+max-statements=50
+max-nested-blocks=4
