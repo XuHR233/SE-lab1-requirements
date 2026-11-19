@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "accounts",
+    "audit",
 ]
 
 MIDDLEWARE = [
@@ -102,6 +103,9 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ponytail: 短信验证码开发期固定值，接真实短信通道时删掉
+SMS_DEV_CODE = env("SMS_DEV_CODE", "000000")
 
 LOGGING = {
     "version": 1,
