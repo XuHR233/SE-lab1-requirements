@@ -5,12 +5,10 @@
 !CONTEXT.md
 !chat.txt
 
-# 实验二：报告、PlantUML、UI 源文件与最终界面图
+# 实验二：PlantUML、UI 源文件与最终界面图（报告含姓名学号，不入公开库）
 !lab02/
 lab02/*
 !lab02/.gitignore
-!lab02/实验报告.md
-!lab02/实验报告.pdf
 !lab02/UML/
 lab02/UML/*
 !lab02/UML/*.puml
