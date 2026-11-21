@@ -137,7 +137,11 @@ class ProductImage(models.Model):
 
 
 class AuditRecord(models.Model):
-    """一条审核流水：提交时开一条，审核时补结论，旧记录永久保留（REQ-005）。"""
+    """一条审核流水：提交时开一条，审核时补结论，旧记录永久保留（REQ-005）。
+
+    卖家撤回提交时这条流水记 withdrawn_at 关闭，不再算「待审」，
+    否则撤回→重提会让库里留下永远开着、没人处理的旧流水。
+    """
 
     product = models.ForeignKey(
         Product, on_delete=models.PROTECT, related_name="audits", verbose_name="商品"
@@ -155,6 +159,7 @@ class AuditRecord(models.Model):
     submitted_version = models.PositiveIntegerField("提交时版本号")
     created_at = models.DateTimeField("提交时间", auto_now_add=True)
     audited_at = models.DateTimeField("审核时间", null=True, blank=True)
+    withdrawn_at = models.DateTimeField("撤回时间", null=True, blank=True)
 
     class Meta:
         """按时间正序查看审核流水。"""
@@ -164,5 +169,10 @@ class AuditRecord(models.Model):
         ordering = ["id"]
 
     def __str__(self) -> str:
-        verdict = "-" if self.approve is None else ("通过" if self.approve else "驳回")
+        if self.withdrawn_at is not None:
+            verdict = "撤回"
+        elif self.approve is None:
+            verdict = "-"
+        else:
+            verdict = "通过" if self.approve else "驳回"
         return f"#{self.product_id} {verdict}"

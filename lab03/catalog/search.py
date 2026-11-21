@@ -1,4 +1,9 @@
-"""商品检索与可见性（REQ-003/011/012/024）。"""
+"""商品检索与可见性（REQ-003/011/012/024）。
+
+两种口径必须分开：
+- 列表/检索：所有角色都只看已发布与已预售，已售出永不出现（REQ-012）。
+- 详情：游客只看已发布/已预售，卖家看自己的任意状态，客服与管理员看任意状态。
+"""
 
 from __future__ import annotations
 
@@ -21,15 +26,24 @@ PAGE_SIZE = 12
 PUBLIC_STATUSES = (PUBLISHED, PRESALE)
 
 
+def listable() -> QuerySet[Product]:
+    """列表与检索的商品集合：只有已发布/已预售，不看角色，已售出永不出现。"""
+    return Product.objects.filter(status__in=PUBLIC_STATUSES)
+
+
 def visible_to(user: object) -> QuerySet[Product]:
-    """能看见哪些商品（REQ-003/012）：游客只看已发布/已预售，卖家额外看自己的。"""
+    """详情口径：能打开哪些商品的详情页（REQ-003/012）。
+
+    已售出的商品不在任何人的列表里，但对应订单的买卖双方可以凭订单进详情，
+    管理员与客服可按职责查看任意状态；那一部分要等 M4 的订单表，Day 2 先按角色。
+    """
     products = Product.objects.all()
     role = role_of(user)
     if role in STAFF_ROLES:
         return products
     if role == ROLE_GUEST:
         return products.filter(status__in=PUBLIC_STATUSES)
-    return products.filter(Q(status__in=PUBLIC_STATUSES) | Q(seller_id=user.pk))
+    return products.filter(Q(status__in=PUBLIC_STATUSES) | Q(seller_id=user.pk))  # type: ignore[attr-defined]
 
 
 def _keyword_filter(keyword: str) -> Q:
@@ -63,7 +77,6 @@ def _price_bounds(
 
 def search(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     *,
-    user: object = None,
     keyword: str | None = None,
     category_id: int | None = None,
     tag: str | None = None,
@@ -72,8 +85,8 @@ def search(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     sort: str = "newest",
     page: int = 1,
 ) -> QuerySet[Product]:
-    """多条件检索：条件之间是「与」，多关键词之间是「或」（REQ-011）。"""
-    products = visible_to(user)
+    """多条件检索：条件之间是「与」，多关键词之间是「或」（REQ-011/012）。"""
+    products = listable()
     keyword = (keyword or "").strip()
     if keyword:
         products = products.filter(_keyword_filter(keyword))
