@@ -7,6 +7,8 @@ from typing import Any
 from django.conf import settings
 from django.db import models
 
+from . import context
+
 RESULT_ALLOWED = "allowed"
 RESULT_DENIED = "denied"
 
@@ -55,7 +57,10 @@ def record(  # pylint: disable=too-many-arguments
     client_type: str = "",
     detail: dict | None = None,
 ) -> OperationLog:
-    """写入一条日志。调用方不负责去重，重复调用就是多条记录。"""
+    """写入一条日志。调用方不负责去重，重复调用就是多条记录。
+
+    来源 IP 与端类型默认从请求上下文取（`audit/context.py`），调用方要覆盖时再显式传。
+    """
     actor_id = getattr(actor, "pk", None)
     label = ""
     if actor_id is not None:
@@ -67,7 +72,7 @@ def record(  # pylint: disable=too-many-arguments
         target_type=target_type,
         target_id=str(target_id) if target_id else "",
         result=result,
-        ip=ip,
-        client_type=client_type,
+        ip=ip if ip is not None else context.current_ip(),
+        client_type=client_type or context.current_client_type(),
         detail=detail or {},
     )

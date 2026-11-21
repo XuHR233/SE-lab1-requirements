@@ -106,7 +106,11 @@ def products(request: HttpRequest) -> HttpResponse:
                 price=data.get("price"),
                 description=data.get("description", ""),
                 brand=data.get("brand", ""),
-                is_presale=bool(data.get("is_presale", False)),
+                is_presale=(
+                    services.as_bool(data["is_presale"], "is_presale")
+                    if "is_presale" in data
+                    else False
+                ),
             )
         )
         return JsonResponse({"id": product.pk, "status": product.status}, status=201)
@@ -153,7 +157,12 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
             **_content(data),
         )
     elif action == "images":
-        services.add_image(product, data.get("url", ""), actor=actor)
+        services.add_image(
+            product,
+            data.get("url", ""),
+            actor=actor,
+            expected_version=_optional_int(data.get("version"), "version"),
+        )
     elif action == "revise":
         services.revise_content(
             product,
@@ -162,10 +171,12 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
             **_content(data),
         )
     elif action == "audit":
+        if "approve" not in data:
+            raise services.InvalidContent("approve 必须是 true 或 false")
         services.audit(
             product,
             auditor=actor,
-            approve=bool(data.get("approve")),
+            approve=services.as_bool(data["approve"], "approve"),
             reason=data.get("reason", ""),
         )
     elif action == "unpublish":
@@ -174,8 +185,6 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
         services.back_to_draft(product, actor=actor)
     elif action == "takedown":
         services.takedown(product, actor=actor, reason=data.get("reason", ""))
-    elif action == "terminate":
-        services.terminate_trade(product, actor=actor, reason=data.get("reason", ""))
     elif action == "delete":
         services.delete_draft(product, actor=actor)
     else:

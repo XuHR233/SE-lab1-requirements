@@ -157,6 +157,7 @@ class AuditRecord(models.Model):
     approve = models.BooleanField("是否通过", null=True, blank=True)
     reason = models.CharField("理由", max_length=200, blank=True)
     submitted_version = models.PositiveIntegerField("提交时版本号")
+    snapshot = models.JSONField("提交时的内容快照", default=dict, blank=True)
     created_at = models.DateTimeField("提交时间", auto_now_add=True)
     audited_at = models.DateTimeField("审核时间", null=True, blank=True)
     withdrawn_at = models.DateTimeField("撤回时间", null=True, blank=True)

@@ -40,7 +40,6 @@ PAYLOADS = {
     "unpublish": {},
     "withdraw": {},
     "takedown": {"reason": "越权下架"},
-    "terminate": {"reason": "越权终止"},
     "delete": {},
 }
 
@@ -55,7 +54,6 @@ STATUS_FOR = {
     "revise": PUBLISHED,
     "unpublish": PUBLISHED,
     "takedown": PUBLISHED,
-    "terminate": TRADING,
 }
 
 # 只允许「卖家本人」的动作（REQ-002 第二重：数据是否属于本人）。
@@ -69,8 +67,6 @@ DENY_CASES = [(role, action) for action in EDIT_ACTIONS for role in DENIED_ROLES
     ("member", "takedown"),
     ("guest", "takedown"),
     ("support", "takedown"),
-    ("guest", "terminate"),
-    ("other", "terminate"),
 ]
 
 
@@ -245,3 +241,85 @@ def test_stale_revise_is_409_through_view(client, actors, category):
     assert second.status_code == 409
     product.refresh_from_db()
     assert (product.version, str(product.price)) == (2, "99.00")
+
+
+def test_denied_log_records_ip_and_client_type(client, actors, category):
+    """越权日志要带来源 IP 与客户端类型，否则 REQ-026 的取证是残的（中 5）。"""
+    product = _build(actors["seller"], category, DRAFT)
+    client.force_login(actors["other"])
+    _post(client, product, "delete", {})
+    log = OperationLog.objects.order_by("-id").first()
+    assert log is not None and log.result == RESULT_DENIED
+    assert log.ip == "127.0.0.1"
+    assert log.client_type == "web"
+
+
+def test_client_type_header_is_honoured(client, actors, category):
+    """带了 X-Client-Type 就按它记，便于区分网页端与后续客户端。"""
+    product = _build(actors["seller"], category, DRAFT)
+    client.force_login(actors["other"])
+    client.post(
+        f"/api/products/{product.pk}/delete/",
+        data=json.dumps({}),
+        content_type="application/json",
+        headers={"X-Client-Type": "app"},
+    )
+    log = OperationLog.objects.order_by("-id").first()
+    assert log is not None and log.client_type == "app"
+
+
+def test_string_false_is_rejected_through_view(client, actors, category):
+    """`approve: "false"` 不能当通过：实测 bool("false") 是 True（高 4）。"""
+    product = _build(actors["seller"], category, PENDING)
+    client.force_login(actors["admin"])
+    response = _post(client, product, "audit", {"approve": "false"})
+    assert response.status_code == 400
+    product.refresh_from_db()
+    assert product.status == PENDING
+
+
+def test_string_false_presale_means_false(client, actors, category):
+    """`is_presale: "false"` 要老老实实当 False，不能因为 `bool("false")` 变预售（高 4）。"""
+    client.force_login(actors["seller"])
+    response = client.post(
+        "/api/products/",
+        data=json.dumps(
+            {"title": "非预售", "price": "10.00", "category_id": category.pk, "is_presale": "false"}
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 201
+    product = Product.objects.get(title="非预售")
+    assert product.is_presale is False
+
+
+def test_garbage_bool_is_rejected_through_view(client, actors, category):
+    """`is_presale: "yes"` 这种既不是布尔也不是 true/false 的值直接 400。"""
+    client.force_login(actors["seller"])
+    response = client.post(
+        "/api/products/",
+        data=json.dumps(
+            {"title": "乱写", "price": "10.00", "category_id": category.pk, "is_presale": "yes"}
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert not Product.objects.filter(title="乱写").exists()
+
+
+def test_terminate_action_is_gone(client, actors, category):
+    """交易中→已下架没有 HTTP 入口：前置（订单、发货、退款结果）由 M4 提供（高 3）。"""
+    product = _build(actors["seller"], category, TRADING)
+    client.force_login(actors["support"])
+    response = _post(client, product, "terminate", {"reason": "我想终止"})
+    assert response.status_code == 404
+    product.refresh_from_db()
+    assert product.status == TRADING
+    assert not OperationLog.objects.filter(action="product.transit", result=RESULT_DENIED).exists()
+
+
+def test_unknown_action_is_404(client, actors, category):
+    """不存在的动作一律 404，不泄露内部函数名。"""
+    product = _build(actors["seller"], category, DRAFT)
+    client.force_login(actors["seller"])
+    assert _post(client, product, "explode", {}).status_code == 404

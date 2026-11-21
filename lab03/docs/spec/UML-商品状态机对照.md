@@ -27,10 +27,10 @@
 | 25 条转换表 | `catalog/state.py:25-37` 的 `PRODUCT_TRANSITIONS`，`catalog/state.py:39-43` 摊平成 `ALLOWED_PAIRS` |
 | 表判定（不碰库） | `catalog/state.py:50` `can_transit(source, target)` |
 | 落库转换（条件 UPDATE） | `catalog/state.py:55` `transit(product, target, *, bump_version=False)` |
-| 用例层入口 | `catalog/services.py`：`submit_for_audit`、`audit`、`revise_content`、`unpublish`、`back_to_draft`、`takedown`、`terminate_trade`、`delete_draft`、`update_draft`（行号随改动漂移，用下面的命令现查） |
+| 用例层入口 | `catalog/services.py`：`submit_for_audit`、`audit`、`revise_content`、`unpublish`、`back_to_draft`、`takedown`、`delete_draft`、`update_draft`（行号随改动漂移，用下面的命令现查） |
 | HTTP 入口 | `catalog/views.py`：`products`、`product_detail`、`product_action`（`/api/products/…`），异常映射见 `json_errors` |
 | 拒绝时统一记日志 | `catalog/services.py` 的 `_deny()`（权限不足，403）与 `_deny_transit()`（状态不允许，409） |
-| 验收测试 | `tests/test_m2.py`（39 个 test） |
+| 验收测试 | `tests/test_m2.py`（61 个 test）+ `tests/test_m1_entries.py`（49 条入口用例） |
 
 行号会随改动漂移，需要现查时用：
 
@@ -58,7 +58,7 @@ cd <local-path> && grep -n '^def ' catalog/services.py && sed -n '25,43p' catalo
 | 10 | `状态图.puml:40` | 交易中 → 已预售 | 未发货退款（预售） | 待 Day 4（M4） | 同上（表） |
 | 11 | `状态图.puml:42` | 已发布 → 已下架 | 卖家 | `unpublish` | `test_unpublish_hides_product` |
 | 12 | `状态图.puml:43` | 已预售 → 已下架 | 卖家（先退定金） | `unpublish` | `test_presale_product_can_be_unpublished_by_seller` |
-| 13 | `状态图.puml:44` | 交易中 → 已下架 | 客服/管理员裁定终止 | `terminate_trade` | `test_support_terminates_trading_product` |
+| 13 | `状态图.puml:44` | 交易中 → 已下架 | 客服/管理员裁定终止（前置由 M4 提供） | 表内边，M4 调 `transit()` | `test_trading_to_offshell_is_left_to_the_order_flow` |
 
 ### 3.2 状态图（二）异常与退出 12 条
 
@@ -92,7 +92,7 @@ UML 的注释不是装饰，代码必须照做，这三条都有独立测试：
 逐条比对过 `requirements.md` 的 REQ-010（第 131 行列的 25 种转换）与两张图，**25 条边完全一致，没有边级的冲突**。
 UML 比 REQ 多说的是「谁可以触发」，REQ-008/REQ-009 的异常段与之一致。三处按 UML/最小权限收紧，记在这里以免被当成偏差：
 
-1. **交易中→已下架不给卖家。** `unpublish` 只放行 `PUBLISHED/PRESALE`。这条边在表里存在，但触发者只能是客服/管理员（`terminate_trade`，权限取 `order.refund`）。
+1. **交易中→已下架不给卖家。** `unpublish` 只放行 `PUBLISHED/PRESALE`。这条边在表里存在，但触发者只能是客服/管理员（M4 在满足订单/退款前置后调 `transit()`；M2 不给「只凭商品 id」的入口）。
    依据：`状态图.puml:44` 写的是「已发货后裁定终止或退款」，`状态图2:59-63` 注释说明卖家没有这条转换；REQ-008 异常段同口径。
 2. **违规下架不给客服。** `takedown` 要 `product.takedown`，该动作的允许角色只有 `ROLE_ADMIN`（`accounts/permissions.py:15`）。
    依据：REQ-002「客服只有退款权，无封号权与下架权」；客服的处置走第 1 条的裁定终止。

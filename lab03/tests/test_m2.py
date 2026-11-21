@@ -39,6 +39,7 @@ from catalog.services import (
     InvalidContent,
     VersionConflict,
     add_image,
+    as_bool,
     audit,
     back_to_draft,
     delete_draft,
@@ -46,7 +47,6 @@ from catalog.services import (
     save_draft,
     submit_for_audit,
     takedown,
-    terminate_trade,
     unpublish,
     update_draft,
 )
@@ -413,20 +413,16 @@ def test_seller_cannot_unpublish_locked_or_trading(db, category, seller):
         assert product.status == source
 
 
-def test_support_terminates_trading_product(db, category, seller, support):
-    """交易中→已下架由客服裁定终止，商品落到已下架而不是违规下架（状态图一 S6→S8）。"""
+def test_trading_to_offshell_is_left_to_the_order_flow(db, category, seller):
+    """交易中→已下架（状态图一 S6→S8）只作为状态原语存在，前置由 M4 订单/退款流程提供。
+
+    M2 不提供 `terminate_trade()` 这类只看全局权限、不看订单的入口：实测证明「客服用一个
+    商品 id 就能把交易中商品干掉」不是闭环业务动作，宁可不给入口，让 M4 满足前置后调 transit()。
+    """
     product = make_product(seller, category, status=TRADING)
-    terminate_trade(product, actor=support, reason="买家举证商品损坏")
+    assert can_transit(TRADING, OFFSHELF) is True
+    transit(product, OFFSHELF)
     assert product.status == OFFSHELF
-
-
-def test_member_cannot_terminate_trading_product(db, category, seller, other):
-    """普通用户没有裁定终止权，只有客服与管理员有（REQ-002）。"""
-    product = make_product(seller, category, status=TRADING)
-    with pytest.raises(PermissionDenied, match="客服或管理员"):
-        terminate_trade(product, actor=other, reason="我自己想终止")
-    product.refresh_from_db()
-    assert product.status == TRADING
 
 
 def test_trading_product_cannot_be_taken_down(db, category, seller, admin):
@@ -539,12 +535,60 @@ def test_add_image_requires_owner(db, category, seller, other):
     assert OperationLog.objects.filter(action="product.edit", result=RESULT_DENIED).exists()
 
 
-def test_add_image_on_published_is_denied(db, category, seller):
-    """已发布商品不能靠补图片绕过审核，改图要走改稿（REQ-007）。"""
+def test_add_image_on_published_triggers_reaudit(db, category, seller):
+    """在架商品补图不能直接生效，商品回到待审核并开一条带快照的流水（REQ-007）。"""
     product = make_product(seller, category, status=PUBLISHED)
+    older = product.version
+    add_image(product, "https://img.example.com/y.jpg", actor=seller)
+    assert (product.status, product.version) == (PENDING, older + 1)
+    assert product.images.count() == 2
+    record = AuditRecord.objects.get(product=product)
+    assert record.submitted_version == older + 1
+    assert "https://img.example.com/y.jpg" in record.snapshot["images"]
+
+
+def test_add_image_on_offshell_is_denied(db, category, seller):
+    """已下架/已售出等状态不给改图，只能先回到草稿（REQ-007 只放开在架商品）。"""
+    product = make_product(seller, category, status=OFFSHELF)
     with pytest.raises(StateConflict, match="不能改图片"):
-        add_image(product, "https://img.example.com/y.jpg", actor=seller)
+        add_image(product, "https://img.example.com/z.jpg", actor=seller)
     assert product.images.count() == 1
+    assert OperationLog.objects.filter(action="product.transit", result=RESULT_DENIED).exists()
+
+
+def test_stale_add_image_cannot_enter_pending(db, category, seller):
+    """读到草稿→别人提交审核→旧请求再补图：状态判定在行锁里重读库，图片进不去（高 2）。"""
+    product = make_product(seller, category, status=DRAFT)
+    stale_page = Product.objects.get(pk=product.pk)
+    submit_for_audit(Product.objects.get(pk=product.pk), actor=seller)
+    with pytest.raises(StateConflict, match="不能改图片"):
+        add_image(stale_page, "https://img.example.com/late.jpg", actor=seller)
+    product.refresh_from_db()
+    assert (product.status, product.images.count()) == (PENDING, 1)
+    assert AuditRecord.objects.filter(product=product).count() == 1
+
+
+def test_submit_by_other_while_pending_is_denied_and_logged(db, category, seller, other):
+    """待审核期间别人来提交：照样 403 并写 denied 日志，幂等只对本人成立（高 1）。"""
+    product = make_product(seller, category, status=PENDING)
+    before = OperationLog.objects.count()
+    with pytest.raises(PermissionDenied, match="只有卖家本人"):
+        submit_for_audit(product, actor=other)
+    assert OperationLog.objects.count() == before + 1
+    log = OperationLog.objects.latest("id")
+    assert (log.action, log.result) == ("product.edit", RESULT_DENIED)
+    assert not OperationLog.objects.filter(action="product.transit").exists()
+    assert AuditRecord.objects.filter(product=product).count() == 0
+
+
+def test_audit_permission_is_checked_before_status(db, category, seller, other):
+    """别人审核草稿得到 403，而不是「状态不允许」的 409（高 7）。"""
+    product = make_product(seller, category, status=DRAFT)
+    with pytest.raises(PermissionDenied, match="无权审核该商品"):
+        audit(product, auditor=other, approve=True)
+    assert OperationLog.objects.filter(action="product.audit", result=RESULT_DENIED).exists()
+    product.refresh_from_db()
+    assert product.status == DRAFT
 
 
 def test_update_draft_from_rejected_returns_to_draft(db, category, seller, admin):
@@ -683,3 +727,64 @@ def test_sold_product_disappears_from_search(db, category, seller, admin):
     product = make_product(seller, category, status=SOLD, title="已成交相机")
     assert not list(search(keyword="已成交"))
     assert visible_to(admin).filter(pk=product.pk).exists()
+
+
+# ---------- 日志闭环与内容快照（第三轮复核补丁） ----------
+
+
+def test_create_edit_and_submit_are_logged_as_allowed(db, category, seller):
+    """建草稿、补图、提交审核各写一条 allowed 日志（REQ-022 要求业务事件可追溯）。"""
+    product = save_draft(
+        DraftInput(seller=seller, category=category, title="镜头", price=Decimal("9.90"))
+    )
+    add_image(product, "https://img.example.com/a.jpg", actor=seller)
+    submit_for_audit(product, actor=seller)
+    actions = set(OperationLog.objects.filter(result="allowed").values_list("action", flat=True))
+    assert {"product.create", "product.edit", "product.submit"} <= actions
+
+
+def test_audit_and_unpublish_are_logged_as_allowed(db, category, seller, admin):
+    """审核通过与卖家主动下架也要留 allowed 日志（中 6）。"""
+    product = make_product(seller, category, status=PENDING)
+    audit(product, auditor=admin, approve=True)
+    unpublish(product, actor=seller)
+    actions = set(OperationLog.objects.filter(result="allowed").values_list("action", flat=True))
+    assert {"product.audit", "product.unpublish"} <= actions
+
+
+def test_audit_record_keeps_content_snapshot(db, category, seller):
+    """审核流水存下提交时的内容快照，日后改稿也能还原当时提交的是什么。"""
+    product = save_draft(
+        DraftInput(
+            seller=seller,
+            category=category,
+            title="镜头",
+            price=Decimal("9.90"),
+            brand="尼康",
+        )
+    )
+    add_image(product, "https://img.example.com/a.jpg", actor=seller)
+    submit_for_audit(product, actor=seller)
+    record = AuditRecord.objects.get(product=product)
+    assert record.snapshot["title"] == "镜头"
+    assert record.snapshot["price"] == "9.90"
+    assert record.snapshot["brand"] == "尼康"
+    assert record.snapshot["images"] == ["https://img.example.com/a.jpg"]
+
+
+def test_revise_snapshot_is_taken_after_the_update(db, category, seller):
+    """在架改稿的流水快照记的是改后的新内容，不是旧值（否则审核员看到假快照）。"""
+    product = make_product(seller, category, status=PUBLISHED, price="100.00")
+    revise_content(product, actor=seller, expected_version=product.version, price=Decimal("88.00"))
+    record = AuditRecord.objects.get(product=product)
+    assert record.snapshot["price"] == "88.00"
+
+
+def test_as_bool_only_accepts_real_booleans(db):
+    """`bool("false")` 是 True，所以布尔解析必须显式拒绝乱字符串（高 4）。"""
+    assert as_bool(True) is True
+    assert as_bool("false") is False
+    assert as_bool("TRUE") is True
+    for bad in ("1", "0", "yes", "", 1, None):
+        with pytest.raises(InvalidContent):
+            as_bool(bad)
