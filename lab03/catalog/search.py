@@ -26,24 +26,40 @@ PAGE_SIZE = 12
 PUBLIC_STATUSES = (PUBLISHED, PRESALE)
 
 
+def _reserved_ids() -> list[int]:
+    """有有效预约的预售商品：锁货期间从所有人的列表与搜索里消失（REQ-003/006）。"""
+    from reservations.models import (  # pylint: disable=import-outside-toplevel
+        active_product_ids,
+    )
+
+    return list(active_product_ids())
+
+
 def listable() -> QuerySet[Product]:
-    """列表与检索的商品集合：只有已发布/已预售，不看角色，已售出永不出现。"""
-    return Product.objects.filter(status__in=PUBLIC_STATUSES)
+    """列表与检索的商品集合：只有已预售且未被预约的已发布商品，已售出永不出现。"""
+    return Product.objects.filter(status__in=PUBLIC_STATUSES).exclude(pk__in=_reserved_ids())
 
 
 def visible_to(user: object) -> QuerySet[Product]:
     """详情口径：能打开哪些商品的详情页（REQ-003/012）。
 
-    已售出的商品不在任何人的列表里，但对应订单的买卖双方可以凭订单进详情，
-    管理员与客服可按职责查看任意状态；那一部分要等 M4 的订单表，Day 2 先按角色。
+    已售出、已预售被预约的商品不在任何人的列表与搜索里，但买家可以凭自己那条预约或订单、
+    卖家可以凭自己的商品进详情；管理员与客服按职责看任意状态（REQ-003/006/012）。
     """
     products = Product.objects.all()
     role = role_of(user)
     if role in STAFF_ROLES:
         return products
+    public = products.filter(status__in=PUBLIC_STATUSES).exclude(pk__in=_reserved_ids())
     if role == ROLE_GUEST:
-        return products.filter(status__in=PUBLIC_STATUSES)
-    return products.filter(Q(status__in=PUBLIC_STATUSES) | Q(seller_id=user.pk))  # type: ignore[attr-defined]
+        return public
+    party = getattr(user, "pk", None)
+    party_scope = (
+        Q(seller_id=party)
+        | Q(orders__buyer_id=party)
+        | Q(reservations__buyer_id=party)
+    )
+    return products.filter(Q(pk__in=public.values_list("pk", flat=True)) | party_scope).distinct()
 
 
 def _keyword_filter(keyword: str) -> Q:

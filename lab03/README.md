@@ -31,3 +31,15 @@ pylint config accounts audit catalog tests manage.py
 
 错误约定：403 无权限、409 版本过期或状态不允许、400 入参或内容不合法；每次拒绝都写一条
 `result=denied` 的操作日志（`audit/OperationLog`）。
+
+## 模块进度
+
+| 模块 | 状态 | 入口 |
+|---|---|---|
+| M1 账号与权限 | 已完成 | ccounts/、pi/accounts/ |
+| M2 商品中心 | 已完成 | catalog/、pi/products/ |
+| M3 预售预约 | 已完成（Day 3） | eservations/、pi/products/<id>/reservations/、pi/reservations/ |
+| M4 交易与资金 | 已完成（Day 4） | 	rade/、pi/orders/、manage.py sweep_expired |
+| M5 沟通与纠纷 | 未开始 | — |
+| M6 评价与统计 | 未开始 | — |
+| M7 日志与运维 | 部分（操作日志只追加已落地） | udit/ |

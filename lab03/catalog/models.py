@@ -84,6 +84,9 @@ class Product(models.Model):  # pylint: disable=too-many-instance-attributes
     description = models.TextField("描述", blank=True)
     price = models.DecimalField("价格", max_digits=10, decimal_places=2, db_index=True)
     is_presale = models.BooleanField("预售", default=False)
+    deposit = models.DecimalField("定金金额", max_digits=10, decimal_places=2, default=0)
+    final_amount = models.DecimalField("尾款金额", max_digits=10, decimal_places=2, default=0)
+    presale_valid_days = models.PositiveSmallIntegerField("预约有效期（天）", default=0)
     status = models.CharField(
         "状态", max_length=16, choices=STATUS_CHOICES, default=DRAFT, db_index=True
     )

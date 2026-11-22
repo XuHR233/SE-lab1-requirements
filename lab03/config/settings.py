@@ -43,6 +43,8 @@ INSTALLED_APPS = [
     "accounts",
     "audit",
     "catalog",
+    "reservations",
+    "trade",
 ]
 
 MIDDLEWARE = [

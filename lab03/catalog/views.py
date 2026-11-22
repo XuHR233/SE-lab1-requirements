@@ -1,51 +1,22 @@
 """商品中心 HTTP 入口：视图只做参数搬运，权限与状态一律由用例层把关。
 
-每个视图都被 `json_errors` 包住，把用例层的异常翻译成 403/409/400：
-- `PermissionDenied` → 403（REQ-002 要求的「无权限提示」）
-- `VersionConflict` / `StateConflict` → 409（版本过期、状态不允许）
-- `InvalidContent` / `ValueError` → 400（入参或内容不合法）
+统一由 `common.api.json_errors` 把用例层异常翻译成 403/409/400（错误响应不含业务数据）。
 """
 
 from __future__ import annotations
 
-import json
-from functools import wraps
-
-from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
+
+from common.api import json_body, json_errors, optional_int
 
 from . import services
 from .models import Category, Product
 from .search import search, visible_to
-from .state import StateConflict
-
-def _json_body(request: HttpRequest) -> dict:
-    """把请求体当 JSON 解析；空体当作空字典，坏 JSON 直接 400。"""
-    if not request.body:
-        return {}
-    try:
-        payload = json.loads(request.body)
-    except json.JSONDecodeError as exc:
-        raise services.InvalidContent("请求体不是合法 JSON") from exc
-    if not isinstance(payload, dict):
-        raise services.InvalidContent("请求体必须是 JSON 对象")
-    return payload
-
-
-def _optional_int(value: object, name: str = "参数") -> int | None:
-    """把可选参数转成整数；空值给 None，非整数给 400。"""
-    if value in (None, ""):
-        return None
-    try:
-        return int(str(value))
-    except ValueError as exc:
-        raise services.InvalidContent(f"{name} 必须是整数") from exc
-
 
 def _category(pk: object) -> Category | None:
     """按主键取分类；空值给 None（草稿允许暂时不选分类）。"""
-    key = _optional_int(pk, "category_id")
+    key = optional_int(pk, "category_id")
     if key is None:
         return None
     category = Category.objects.filter(pk=key).first()
@@ -71,25 +42,30 @@ def _row(product: Product) -> dict:
         "status": product.status,
         "version": product.version,
         "is_presale": product.is_presale,
+        "deposit": str(product.deposit),
+        "final_amount": str(product.final_amount),
+        "presale_valid_days": product.presale_valid_days,
     }
 
 
-def json_errors(view):
-    """把用例层异常翻译成 4xx JSON（错误响应里不带商品内容）。"""
-
-    @wraps(view)
-    def wrapper(request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        """执行视图并统一处理异常。"""
-        try:
-            return view(request, *args, **kwargs)
-        except PermissionDenied as exc:
-            return JsonResponse({"error": str(exc)}, status=403)
-        except (services.VersionConflict, StateConflict) as exc:
-            return JsonResponse({"error": str(exc)}, status=409)
-        except (services.InvalidContent, ValueError) as exc:
-            return JsonResponse({"error": str(exc)}, status=400)
-
-    return wrapper
+def _draft(data: dict, seller: object) -> services.DraftInput:
+    """把请求体拼成建草稿的入参，预售三件套缺省为 0/0/0，布尔字段走严格解析。"""
+    return services.DraftInput(
+        seller=seller,
+        category=_category(data.get("category_id")),
+        title=data.get("title", ""),
+        price=data.get("price"),
+        description=data.get("description", ""),
+        brand=data.get("brand", ""),
+        is_presale=(
+            services.as_bool(data["is_presale"], "is_presale")
+            if "is_presale" in data
+            else False
+        ),
+        deposit=data.get("deposit", 0),
+        final_amount=data.get("final_amount", 0),
+        presale_valid_days=data.get("presale_valid_days", 0),
+    )
 
 
 @json_errors
@@ -97,32 +73,18 @@ def json_errors(view):
 def products(request: HttpRequest) -> HttpResponse:
     """GET 按条件检索商品；POST 新建草稿（草稿允许内容不完整）。"""
     if request.method == "POST":
-        data = _json_body(request)
-        product = services.save_draft(
-            services.DraftInput(
-                seller=request.user,
-                category=_category(data.get("category_id")),
-                title=data.get("title", ""),
-                price=data.get("price"),
-                description=data.get("description", ""),
-                brand=data.get("brand", ""),
-                is_presale=(
-                    services.as_bool(data["is_presale"], "is_presale")
-                    if "is_presale" in data
-                    else False
-                ),
-            )
-        )
+        data = json_body(request)
+        product = services.save_draft(_draft(data, seller=request.user))
         return JsonResponse({"id": product.pk, "status": product.status}, status=201)
 
     rows = search(
         keyword=request.GET.get("keyword"),
-        category_id=_optional_int(request.GET.get("category"), "category"),
+        category_id=optional_int(request.GET.get("category"), "category"),
         tag=request.GET.get("tag"),
         price_min=request.GET.get("price_min"),
         price_max=request.GET.get("price_max"),
         sort=request.GET.get("sort", "newest"),
-        page=_optional_int(request.GET.get("page"), "page") or 1,
+        page=optional_int(request.GET.get("page"), "page") or 1,
     )
     return JsonResponse({"items": [_row(item) for item in rows]})
 
@@ -144,7 +106,7 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
     product = Product.objects.filter(pk=pk).first()
     if product is None:
         return JsonResponse({"error": "商品不存在"}, status=404)
-    data = _json_body(request)
+    data = json_body(request)
     actor = request.user
 
     if action == "submit":
@@ -153,7 +115,7 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
         services.update_draft(
             product,
             actor=actor,
-            expected_version=_optional_int(data.get("version"), "version"),
+            expected_version=optional_int(data.get("version"), "version"),
             **_content(data),
         )
     elif action == "images":
@@ -161,13 +123,13 @@ def product_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
             product,
             data.get("url", ""),
             actor=actor,
-            expected_version=_optional_int(data.get("version"), "version"),
+            expected_version=optional_int(data.get("version"), "version"),
         )
     elif action == "revise":
         services.revise_content(
             product,
             actor=actor,
-            expected_version=_optional_int(data.get("version"), "version"),
+            expected_version=optional_int(data.get("version"), "version"),
             **_content(data),
         )
     elif action == "audit":

@@ -6,6 +6,8 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
+from common.errors import Conflict
+
 from .models import (
     DELETED,
     DRAFT,
@@ -43,7 +45,7 @@ ALLOWED_PAIRS: frozenset[tuple[str, str]] = frozenset(
 )
 
 
-class StateConflict(Exception):
+class StateConflict(Conflict):
     """状态转换不被允许，或并发下已被别人改掉。"""
 
 

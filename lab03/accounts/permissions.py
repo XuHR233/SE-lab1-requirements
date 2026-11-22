@@ -8,6 +8,16 @@ from .models import ROLE_ADMIN, ROLE_GUEST, ROLE_MEMBER, ROLE_SUPPORT
 
 ALLOWED_ROLES: dict[str, frozenset[str]] = {
     "product.browse": frozenset({ROLE_GUEST, ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
+    "reservation.create": frozenset({ROLE_MEMBER}),
+    "reservation.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
+    "reservation.confirm": frozenset({ROLE_MEMBER}),
+    "reservation.cancel": frozenset({ROLE_MEMBER}),
+    "reservation.pay": frozenset({ROLE_MEMBER}),
+    "order.pay": frozenset({ROLE_MEMBER}),
+    "order.ship": frozenset({ROLE_MEMBER}),
+    "order.receive": frozenset({ROLE_MEMBER}),
+    "order.cancel": frozenset({ROLE_MEMBER}),
+    "order.refund_request": frozenset({ROLE_MEMBER}),
     "product.create": frozenset({ROLE_MEMBER}),
     "product.edit": frozenset({ROLE_MEMBER}),
     "product.delete": frozenset({ROLE_MEMBER}),
@@ -30,6 +40,13 @@ OWNER_ONLY: frozenset[str] = frozenset(
         "product.edit",
         "product.delete",
         "order.view",
+        "order.pay",
+        "order.ship",
+        "order.receive",
+        "order.refund_request",
+        "reservation.view",
+        "reservation.confirm",
+        "reservation.pay",
         "account.view",
         "chat.view",
         "chat.send",
@@ -58,8 +75,9 @@ def can(user: Any, action: str, *, owner_id: int | None = None) -> bool:
     if action in SELF_EXCLUDED and owner_id is not None and owner_id == user.pk:
         return False
     # 同一账号不能购买自己发布的商品（REQ-001），此处 owner_id 是卖家。
-    if action == "order.create" and owner_id is not None and owner_id == user.pk:
-        return False
+    if action in ("order.create", "reservation.create") and owner_id is not None:
+        if owner_id == user.pk:
+            return False
     if role not in STAFF_ROLES and action in OWNER_ONLY:
         return owner_id is not None and owner_id == user.pk
     return True

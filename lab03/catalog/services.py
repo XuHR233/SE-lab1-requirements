@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from accounts.permissions import can
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
+from common.errors import Conflict, InvalidInput
 
 from .models import (
     DELETED,
@@ -32,17 +33,27 @@ from .models import (
 from .state import StateConflict, can_transit, transit
 
 # 可改的内容字段；is_presale 参与内容版本，因为它决定审核通过后落哪个状态。
-CONTENT_FIELDS = ("title", "description", "price", "category", "brand", "is_presale")
+CONTENT_FIELDS = (
+    "title",
+    "description",
+    "price",
+    "category",
+    "brand",
+    "is_presale",
+    "deposit",
+    "final_amount",
+    "presale_valid_days",
+)
 
 # 只有这两个状态还能改内容：待审核要改就先撤回，上架中要改走 revise_content（REQ-007）。
 EDITABLE_STATUSES = (DRAFT, REJECTED)
 
 
-class InvalidContent(Exception):
+class InvalidContent(InvalidInput):
     """必填项缺失或参数不合法。"""
 
 
-class VersionConflict(Exception):
+class VersionConflict(Conflict):
     """旧页面提交，库里的版本已经不是它看到的那个（REQ-007 的 ABA）。"""
 
 
@@ -96,21 +107,59 @@ def as_bool(value: object, name: str = "取值") -> bool:
     raise InvalidContent(f"{name} 必须是 true 或 false")
 
 
+def _as_amount(value: object, name: str, *, allow_zero: bool = False) -> Decimal:
+    """金额字段：不能为负，定金/尾款在提交审核时必须大于 0（REQ-006）。"""
+    try:
+        amount = Decimal(value)  # type: ignore[arg-type]
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise InvalidContent(f"{name}必须是数字") from exc
+    if not amount.is_finite() or amount < 0 or (not allow_zero and amount == 0):
+        raise InvalidContent(f"{name}必须大于 0" if not allow_zero else f"{name}不能为负")
+    return amount
+
+
 def _check_fields(  # pylint: disable=too-many-arguments
     *,
     title: object,
     price: object,
     category_id: int | None,
     has_images: bool,
+    is_presale: bool = False,
+    deposit: object = Decimal("0.00"),
+    final_amount: object = Decimal("0.00"),
+    valid_days: object = 0,
 ) -> None:
-    """提交审核与审核通过前的内容校验（REQ-004/005）。"""
+    """提交审核与审核通过前的内容校验（REQ-004/005/006）。"""
     if not str(title or "").strip():
         raise InvalidContent("标题不能为空")
-    _as_price(price)
+    amount = _as_price(price)
     if category_id is None:
         raise InvalidContent("必须选择分类")
     if not has_images:
         raise InvalidContent("至少上传一张图片")
+    if is_presale:
+        _check_presale(
+            price=amount,
+            deposit=deposit,
+            final_amount=final_amount,
+            valid_days=valid_days,
+        )
+
+
+def _check_presale(
+    *, price: Decimal, deposit: object, final_amount: object, valid_days: object
+) -> None:
+    """预售三件套：定金>0、尾款>0、定金+尾款=成交价、有效期 1..180 天（REQ-006）。"""
+    paid = _as_amount(deposit, "定金")
+    rest = _as_amount(final_amount, "尾款")
+    if paid + rest != price:
+        raise InvalidContent("定金与尾款之和必须等于商品价格")
+    try:
+        days = int(valid_days)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise InvalidContent("预约有效期必须是整数天数") from exc
+    if not 1 <= days <= 180:
+        raise InvalidContent("预约有效期必须在 1 到 180 天之间")
 
 
 def _check_submittable(product: Product) -> None:
@@ -120,6 +169,10 @@ def _check_submittable(product: Product) -> None:
         price=product.price,
         category_id=product.category_id,
         has_images=product.has_images(),
+        is_presale=product.is_presale,
+        deposit=product.deposit,
+        final_amount=product.final_amount,
+        valid_days=product.presale_valid_days,
     )
 
 
@@ -132,9 +185,18 @@ def _snapshot(product: Product) -> dict[str, object]:
         "price": str(product.price),
         "category_id": product.category_id,
         "is_presale": product.is_presale,
+        "deposit": str(product.deposit),
+        "final_amount": str(product.final_amount),
+        "presale_valid_days": product.presale_valid_days,
         "images": list(product.images.values_list("url", flat=True)),
     }
 
+
+def _has_reservation(product: Product) -> bool:
+    """该商品是否有有效预约（延迟导入，避免 catalog 与 reservations 循环 import）。"""
+    from reservations.models import has_active  # pylint: disable=import-outside-toplevel
+
+    return has_active(product)
 
 def _allow(
     actor: object,
@@ -166,6 +228,10 @@ def _candidate(product: Product, updates: dict[str, object]) -> dict[str, object
         "price": updates.get("price", product.price),
         "category_id": category_id,
         "has_images": product.has_images(),
+        "is_presale": updates.get("is_presale", product.is_presale),
+        "deposit": updates.get("deposit", product.deposit),
+        "final_amount": updates.get("final_amount", product.final_amount),
+        "valid_days": updates.get("presale_valid_days", product.presale_valid_days),
     }
 
 
@@ -179,6 +245,12 @@ def _db_updates(updates: dict[str, object]) -> dict[str, object]:
             columns["price"] = _as_price(value)
         elif key == "is_presale":
             columns["is_presale"] = as_bool(value, "is_presale")
+        elif key == "deposit":
+            columns["deposit"] = _as_amount(value, "定金", allow_zero=True)
+        elif key == "final_amount":
+            columns["final_amount"] = _as_amount(value, "尾款", allow_zero=True)
+        elif key == "presale_valid_days":
+            columns["presale_valid_days"] = int(value)  # type: ignore[arg-type]
         elif key in ("title", "brand"):
             columns[key] = str(value).strip()
         elif key == "description":
@@ -193,6 +265,8 @@ def _pick_content(fields: dict[str, object]) -> dict[str, object]:
     return {key: value for key, value in fields.items() if key in CONTENT_FIELDS}
 
 
+# pylint: disable=too-many-instance-attributes
+# 理由：草稿字段就是这些（含预售三项），再拆一层结构只会让调用方多拼一次。
 @dataclass(frozen=True)
 class DraftInput:
     """创建草稿需要的字段，避免函数签名过长。"""
@@ -204,6 +278,9 @@ class DraftInput:
     description: str = ""
     brand: str = ""
     is_presale: bool = False
+    deposit: Decimal = Decimal("0.00")
+    final_amount: Decimal = Decimal("0.00")
+    presale_valid_days: int = 0
 
 
 def save_draft(data: DraftInput) -> Product:
@@ -223,6 +300,9 @@ def save_draft(data: DraftInput) -> Product:
         description=data.description,
         brand=data.brand,
         is_presale=bool(data.is_presale),
+        deposit=_as_amount(data.deposit, "定金", allow_zero=True),
+        final_amount=_as_amount(data.final_amount, "尾款", allow_zero=True),
+        presale_valid_days=int(data.presale_valid_days or 0),
         status=DRAFT,
     )
     _allow(data.seller, "product.create", product=product)
@@ -292,6 +372,8 @@ def add_image(
         fresh = Product.objects.select_for_update().get(pk=product.pk)
         if expected_version is not None and fresh.version != expected_version:
             stale = True
+        elif fresh.is_presale and _has_reservation(fresh):
+            blocked = "该预售商品有有效预约，不能修改图片"
         elif fresh.status in EDITABLE_STATUSES:
             fresh.images.create(url=text)
             Product.objects.filter(pk=fresh.pk).update(
@@ -438,6 +520,8 @@ def revise_content(
         _deny(actor, "product.edit", "只有卖家本人可以修改", product=product)
     if product.status not in (PUBLISHED, PRESALE):
         _deny_transit(product, actor, PENDING, "当前状态不允许修改内容")
+    if product.is_presale and _has_reservation(product):
+        _deny_transit(product, actor, PENDING, "该预售商品有有效预约，不能修改内容")
     updates = _pick_content(fields)
     if not updates:
         raise InvalidContent("没有可修改的字段")
@@ -492,6 +576,10 @@ def unpublish(product: Product, *, actor: object) -> Product:
         _deny(actor, "product.edit", "只有卖家本人可以主动下架", product=product)
     if product.status not in (PUBLISHED, PRESALE):
         _deny_transit(product, actor, OFFSHELF, f"{product.status} 状态不允许卖家主动下架")
+    if product.is_presale and _has_reservation(product):
+        _deny_transit(
+            product, actor, OFFSHELF, "该预售商品有有效预约，请先取消预约并退还定金"
+        )
     result = transit(product, OFFSHELF)
     _allow(actor, "product.unpublish", product=product)
     return result
@@ -520,6 +608,11 @@ def takedown(product: Product, *, actor: object, reason: str) -> Product:
     if not can_transit(product.status, VIOLATED):
         _deny_transit(product, actor, VIOLATED, f"{product.status} 状态不允许违规下架")
     transit(product, VIOLATED)
+    from reservations.services import (  # pylint: disable=import-outside-toplevel
+        cancel_for_takedown,
+    )
+
+    cancel_for_takedown(product, reason=str(reason).strip())
     record(
         action="product.takedown",
         result="allowed",

@@ -1,7 +1,7 @@
 """M2 验收测试：R-201 状态机 / R-202 审核流 / R-203 版本号 / R-204 下架与违规 / R-205 检索。"""
 
 # pylint: disable=redefined-outer-name,unused-argument,too-many-arguments
-# pylint: disable=too-many-positional-arguments,too-many-lines
+# pylint: disable=too-many-positional-arguments,too-many-lines,duplicate-code
 # 理由：pytest 的 fixture 按参数名注入；db fixture 不显式使用也要写在签名里。
 
 from __future__ import annotations
@@ -126,6 +126,9 @@ def make_product(  # pylint: disable=too-many-arguments,too-many-positional-argu
     price="100.00",
     is_presale=False,
     with_image=True,
+    deposit="0.00",
+    final_amount="0.00",
+    presale_valid_days=0,
 ):
     """直接落在指定状态，用于测状态机本身（绕过用例层，因此也可用来造假数据）。"""
     product = Product.objects.create(
@@ -134,6 +137,9 @@ def make_product(  # pylint: disable=too-many-arguments,too-many-positional-argu
         title=title,
         price=Decimal(price),
         is_presale=is_presale,
+        deposit=Decimal(deposit),
+        final_amount=Decimal(final_amount),
+        presale_valid_days=presale_valid_days,
         status=DRAFT,
     )
     if with_image:
@@ -237,7 +243,15 @@ def test_approve_publishes_normal_product(db, category, seller, admin):
 
 def test_approve_publishes_presale_product_as_presale(db, category, seller, admin):
     """审核通过：勾了预售的商品进入已预售而不是已发布（REQ-005）。"""
-    product = make_product(seller, category, status=PENDING, is_presale=True)
+    product = make_product(
+        seller,
+        category,
+        status=PENDING,
+        is_presale=True,
+        deposit="20.00",
+        final_amount="80.00",
+        presale_valid_days=30,
+    )
     audit(product, auditor=admin, approve=True)
     assert product.status == PRESALE
 
@@ -624,6 +638,9 @@ def test_presale_flag_flows_through_business_entry(db, category, seller, admin):
             title="预售镜头",
             price=Decimal("120.00"),
             is_presale=True,
+            deposit=Decimal("30.00"),
+            final_amount=Decimal("90.00"),
+            presale_valid_days=30,
         )
     )
     add_image(product, "https://img.example.com/p.jpg", actor=seller)
