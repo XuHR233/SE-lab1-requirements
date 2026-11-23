@@ -30,7 +30,7 @@ ALLOWED_ROLES: dict[str, frozenset[str]] = {
     "account.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
     "chat.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
     "chat.send": frozenset({ROLE_MEMBER}),
-    "log.view": frozenset({ROLE_ADMIN}),
+    "log.view": frozenset({ROLE_SUPPORT, ROLE_ADMIN}),
     "profile.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
 }
 
