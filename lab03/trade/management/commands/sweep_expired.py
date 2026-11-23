@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from reservations import services as reservations
+from reviews import services as reviews
 from trade import services as trade
 
 
@@ -32,7 +33,8 @@ class Command(BaseCommand):
         self.stdout.write(
             f"预约关闭 {closed_reservations} 条，订单推进 {closed_orders} 条（{moment.isoformat()}）"
         )
-        return None
+        auto_reviews, reminders = reviews.sweep(now=moment)
+        self.stdout.write(f"自动评价 {auto_reviews} 条，评价申诉提醒 {reminders} 条")
 
     @staticmethod
     def _now(text: str):
