@@ -112,6 +112,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ponytail: 短信验证码开发期固定值，接真实短信通道时删掉
 SMS_DEV_CODE = env("SMS_DEV_CODE", "000000")
 
+AUDIT_RETRY_DIR = Path(env("AUDIT_RETRY_DIR", str(BASE_DIR / "tmp" / "audit-retry")))
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
