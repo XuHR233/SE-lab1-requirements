@@ -112,6 +112,10 @@ def appeal(review, actor, *, reason, now=None):
     """被评价方可申诉；申诉不会自动隐藏评价。"""
     if role_of(actor) != ROLE_MEMBER or actor.pk != review.target_id:
         _deny("review.appeal", review.order, actor, "只有被评价方可申诉")
+    if review.automatic:
+        text = "系统自动好评不可申诉"
+        _log("review.appeal", review.order, actor, RESULT_DENIED, reason=text)
+        raise Conflict(text)
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 500:
         raise InvalidInput("请填写不超过 500 字的申诉原因")
     moment = now or business_now()

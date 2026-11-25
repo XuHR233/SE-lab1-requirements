@@ -16,6 +16,7 @@ from PIL import Image, ImageOps
 
 from accounts.permissions import can
 from catalog import services as catalog
+from catalog.history import has_historical_image
 from catalog.models import Product, ProductImage
 from catalog.search import visible_to
 from common.api import json_errors, optional_int
@@ -96,11 +97,12 @@ def upload_product(request, pk):
 def product_file(request, pk, key):
     """商品公开时可显示，草稿只对授权查看人可见。"""
     _require_demo()
-    if not visible_to(request.user).filter(pk=pk).exists():
-        raise Http404
-    if not ProductImage.objects.filter(product_id=pk, url=request.path).exists():
-        raise Http404
-    return _serve(key)
+    if (visible_to(request.user).filter(pk=pk).exists()
+            and ProductImage.objects.filter(product_id=pk, url=request.path).exists()):
+        return _serve(key)
+    if has_historical_image(request.user, pk, request.path):
+        return _serve(key)
+    raise Http404
 
 
 @require_POST

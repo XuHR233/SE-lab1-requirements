@@ -79,7 +79,7 @@ async function render(tab, focus, desk) {
   if (tab === "orders") return orders(desk, focus, open, reload);
   if (tab === "reservations") return reservations(desk, focus, open, reload);
   if (tab === "disputes") return disputes(desk, open);
-  if (tab === "appeals") return appeals((await api("/api/staff/review-appeals/")).pending, reload);
+  if (tab === "appeals") return appeals(await api(`/api/staff/review-appeals/?page=${focus || 1}`), open, reload);
   if (tab === "chats") return chats(desk, focus, open, reload);
   if (tab === "stats") return stats(focus, open);
   if (tab === "logs") return logs(focus, open);

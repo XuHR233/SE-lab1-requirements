@@ -1,7 +1,7 @@
 import {actions, api, button, card, component, config, date, field, imageAccept, member, meta, modal, node, pair, picture, reason, yuan} from "./ui.js";
 import {claimTicket, dispositionPanel, ownsDispute, ticketState} from "./disputes.js";
 
-function message(item, chat, reload) {
+function message(item, chat) {
   const mine = item.sender_id === config.user;
   const role = item.staff_role === "admin" ? "管理员" : item.staff_role === "support" ? "客服"
     : item.sender_id === chat.seller_id ? "卖家" : "买家";
@@ -11,10 +11,6 @@ function message(item, chat, reload) {
   if (item.text) bubble.append(node("p", item.text));
   if (item.image) bubble.append(picture(item.image, "会话图片", "chat-image", false) || meta("旧图片地址未在内测页加载。"));
   bubble.append(node("span", date(item.created_at), "when"));
-  if (member) bubble.append(button("仅对我隐藏", async () => {
-    await api(`/api/chats/${chat.id}/hide/`, {message_id: item.id});
-    await reload("已在我的会话中隐藏。");
-  }, "nav-link chat-hide"));
   row.append(node("span", mine ? "我" : role[0], mine ? "who s" : "who"), bubble);
   return row;
 }
@@ -101,7 +97,7 @@ export async function chats(desk, focus, open, reload) {
     : chat.order_id ? `订单 #${chat.order_id} · ${chat.order_status}` : "商品咨询";
   if (member && chat.thumbnail) slots.image.append(picture(chat.thumbnail));
   const thread = slots.thread;
-  thread.append(...data.items.map(item => message(item, chat, reload)));
+  thread.append(...data.items.map(item => message(item, chat)));
   if (!data.items.length) thread.append(meta("暂无消息。"));
   const canRaise = member && !ticket && ["待发货", "待收货", "纠纷中", "已完成"].includes(chat.order_status);
   for (const signal of data.signals.filter(entry => !entry.ignored)) {
@@ -124,7 +120,7 @@ export async function chats(desk, focus, open, reload) {
   else slots.composer.append(meta("只有当前处理人可以参与交流。"));
   const bar = actions(canRaise && !data.signals.some(entry => !entry.ignored) && requestDispute(chat, reload));
   main.append(node("h3", member ? `与${party}的会话` : "工单关联会话"), channel, bar);
-  aside.append(card("会话规则", null, meta("聊天记录与商品绑定，仅双方和有权处理该工单的工作人员可见。消息不能单方面删除，可以仅对自己隐藏。")),
+  aside.append(card("会话规则", null, meta("聊天记录仅双方和有权处理该工单的工作人员可见。页面不提供隐藏或删除消息。")),
     ticketPanel(ticket, chat, open, reload), card("处理权限", null, pair("客服退款", "须记录裁定及说明"), pair("封号 / 下架", "仅管理员"),
       meta("请保留商品照片、检测凭证与聊天记录。")));
   const scrollToEnd = () => { if (thread.isConnected) thread.scrollTop = thread.scrollHeight; };

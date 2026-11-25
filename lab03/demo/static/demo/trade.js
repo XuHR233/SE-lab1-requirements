@@ -17,7 +17,7 @@ function reviewBox(order, url, reload) {
   const wrapper = node("div");
   for (const entry of order.reviews) {
     wrapper.append(meta(`${entry.author === order.buyer_id ? "买家" : "卖家"} · ${entry.rating} 星${entry.automatic ? "（系统补评）" : ""} · ${entry.content || "无文字"}`));
-    if (member && entry.target === config.user && !entry.appealed) wrapper.append(operation(
+    if (member && entry.target === config.user && !entry.automatic && !entry.appealed) wrapper.append(operation(
       "申诉这条评价", "申诉提交后由管理员处理。", `/api/reviews/${entry.id}/appeal/`, reload,
       {fields: [reason("申诉原因", 500)], body: data => ({reason: data.get("reason")})},
     ));
@@ -29,19 +29,24 @@ function reviewBox(order, url, reload) {
 export function orders(desk, focus, open, reload) {
   const layout = node("div", null, "split");
   const main = node("div", null, "main"), stack = node("div");
+  const hour = 3600000;
+  const within = (item, hours) => item.status === "待发货" && item.paid_at
+    && new Date(desk.now) - new Date(item.paid_at) < hours * hour;
   const groups = [["全部", []], ["待付款", ["待付款"]], ["待发货", ["待发货"]],
     ["待收货", ["待收货"]], ["已完成", ["已完成"]], ["退款 / 纠纷", ["已退款", "纠纷中"]], ["已取消", ["已取消"]]];
   function orderRow(item) {
     const base = `/api/orders/${item.id}/`, buyer = member && item.buyer_id === config.user;
     const seller = member && item.seller_id === config.user;
+    const refundable = item.can_self_refund ?? within(item, 48);
+    const shippable = item.can_ship ?? within(item, 15 * 24);
     const active = focus === item.id ? " · 当前" : "";
     const list = [], op = (name, suffix, note, fields) => operation(name, note, base + suffix + "/", reload, fields);
     if ((buyer || seller) && item.status === "待付款") list.push(op("取消未付款订单", "cancel", "取消将释放锁定的商品。"));
     if (buyer && item.status === "待付款" && config.payments) list.push(op("模拟支付", "pay", `记账 ${yuan(item.amount)}，不扣款。`, {body: () => ({txn_no: uid()})}));
-    if ((buyer || staff) && item.status === "待发货") list.push(op("全额退款", "refund", "未发货，按业务规则模拟退款。", {
+    if (buyer && refundable) list.push(op("全额退款", "refund", "付款后 48 小时内且未发货，可模拟全额退款。", {
       fields: [reason("退款理由")], body: data => ({reason: data.get("reason")}),
     }));
-    if (seller && item.status === "待发货") list.push(op("模拟发货", "ship", "请输入虚构的运单号。", {
+    if (seller && shippable) list.push(op("模拟发货", "ship", "请输入虚构的运单号。", {
       fields: [field("tracking_no", "运单号", {required: true, pattern: "[A-Za-z0-9]{6,60}", placeholder: "TEST123456"})],
       body: data => ({tracking_no: data.get("tracking_no")}),
     }));
@@ -71,7 +76,8 @@ export function orders(desk, focus, open, reload) {
     slots.amount.textContent = yuan(item.amount);
     const notes = {
       "待付款": `支付截止 ${date(item.expires_at)}，超时释放商品。`,
-      "待发货": "商品未发货，可按规则申请全额退款。",
+      "待发货": refundable ? "付款后 48 小时内且未发货，可自助全额退款。"
+        : "自助退款窗口已关闭；满 15 天未发货将自动全额退款。",
       "待收货": `自动确认时间 ${date(item.auto_confirm_at)}；如有问题可请求客服介入。`,
       "纠纷中": "工单处理中，暂停自动确认与结算。",
     };
@@ -155,7 +161,7 @@ export function reservations(desk, focus, open, reload) {
     slots.tip.textContent = item.close_reason ? `${item.close_reason} · 应退 ${yuan(item.refund_due)}` : ({
       "待付定金": `定金截止 ${date(item.deposit_due_at)}`,
       "待确认": "请在有效期内确认；拒绝或超时全额退回定金。",
-      "待到货": "到货后，次日 00:00 起 24 小时内可以支付尾款。",
+      "待到货": "有效期内未确认到货，定金全退、商品下架；按时确认后次日开放尾款。",
       "待付尾款": `尾款窗口 ${date(item.final_start)} 至 ${date(item.final_due_at)}`,
     }[item.status] || "尾款到账后进入订单履约流程。");
     slots.foot.append(...list);
@@ -182,12 +188,16 @@ export function disputes(desk, open) {
   });
 }
 
-export function appeals(rows, reload) {
-  return grid(rows, row => card(`申诉 #${row.id} · 评价 #${row.review_id}`, row.reminded_at ? "已超期提醒" : "待处理",
+export function appeals({pending, page = 1, has_next}, open, reload) {
+  const root = node("div");
+  root.append(grid(pending, row => card(`申诉 #${row.id} · 评价 #${row.review_id}`, row.reminded_at ? "已超期提醒" : "待处理",
     meta(row.reason), meta(`期限 ${date(row.due_at)}`), actions(operation("处理申诉", "申诉成立将屏蔽评价。",
       `/api/staff/review-appeals/${row.id}/resolve/`, reload, {
         fields: [field("upheld", "结论", {values: [["true", "成立 · 屏蔽评价"], ["false", "不成立"]]}),
           field("note", "说明", {required: true, maxlength: 500, type: "textarea"})],
         body: data => ({upheld: data.get("upheld") === "true", note: data.get("note")}),
-      }))));
+      })))));
+  root.append(actions(page > 1 && button("上一页", () => open("appeals", page - 1)),
+    has_next && button("下一页", () => open("appeals", page + 1))));
+  return root;
 }

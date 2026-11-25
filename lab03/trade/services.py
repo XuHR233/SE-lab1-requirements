@@ -19,6 +19,7 @@ from django.db.models import F, Q, QuerySet
 
 from accounts.permissions import can
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
+from catalog.history import capture, for_document
 from catalog.models import LOCKED, OFFSHELF, PRESALE, PUBLISHED, SOLD, TRADING, Product
 from catalog.state import StateConflict, can_transit, transit
 from common.errors import Conflict, InvalidInput
@@ -46,7 +47,7 @@ from .models import (
 )
 
 PAYMENT_WINDOW = timedelta(minutes=15)
-SHIP_DEADLINE = timedelta(hours=48)
+BUYER_REFUND_WINDOW = timedelta(hours=48)
 AUTO_REFUND_DEADLINE = timedelta(days=15)
 AUTO_CONFIRM_WINDOW = timedelta(days=7)
 
@@ -81,13 +82,17 @@ def _allow(
     detail: dict[str, object] | None = None,
 ) -> None:
     """重要资金与状态动作放行也留一条日志（REQ-022）。"""
+    fields = dict(detail or {})
+    if order is not None:
+        fields.update({"order_id": order.pk, "product_id": order.product_id,
+                       "amount": str(order.amount), "status": order.status})
     record(
         action=action,
         result=RESULT_ALLOWED,
         actor=actor,
         target_type="order",
         target_id=getattr(order, "pk", "") or "",
-        detail=detail or {},
+        detail=fields,
     )
 
 
@@ -201,6 +206,7 @@ def create_order(
                     buyer=buyer,
                     seller=product.seller,
                     amount=product.price,
+                    product_snapshot=capture(product),
                     status=WAITING_PAY,
                     request_key=str(request_key or "")[:64],
                     expires_at=moment + PAYMENT_WINDOW,
@@ -288,7 +294,8 @@ def pay(order: Order, *, actor: object, txn_no: str, amount: object = None, now=
             raise OrderConflict(result)
         return order
     _allow(actor, "order.pay", order=order,
-           detail={"amount": str(order.amount), "txn_no": result.txn_no})
+           detail={"from": WAITING_PAY, "to": WAITING_SHIP, "txn_no": result.txn_no,
+                   "paid_at": order.paid_at.isoformat()})
     return order
 
 
@@ -347,27 +354,35 @@ def ship(order: Order, *, actor: object, tracking_no: str, now=None) -> Order:
     """卖家确认发货：订单转待收货并记运单号，重复确认只生效一次（REQ-015）。"""
     if not can(actor, "order.ship", owner_id=order.seller_id):
         _deny(actor, "order.ship", "只有该订单的卖家可以确认发货", order=order)
+    with transaction.atomic():
+        Product.objects.select_for_update().get(pk=order.product_id)
+        order.refresh_from_db(from_queryset=Order.objects.select_for_update())
+        moment = _moment(now)
+        expired = _auto_refund(order, now=moment)
+        if not expired and not _mark_shipped(order, tracking_no, moment):
+            return order
+    if expired:
+        raise OrderConflict("已满 15 天未发货，订单已自动全额退款")
+    _allow(actor, "order.ship", order=order, detail={
+        "from": WAITING_SHIP, "to": WAITING_RECEIPT, "tracking_no": order.tracking_no,
+        "shipped_at": moment.isoformat(), "auto_confirm_at": order.auto_confirm_at.isoformat(),
+    })
+    return order
+
+
+def _mark_shipped(order, tracking_no, moment):
     tracking = str(tracking_no or "").strip()
     if order.status == WAITING_RECEIPT and order.tracking_no == tracking:
-        return order
+        return False
     if order.status != WAITING_SHIP:
         raise OrderConflict(f"{order.status} 状态不能发货")
-    if not 6 <= len(tracking) <= 60 or not tracking.isalnum():
+    if not 6 <= len(tracking) <= 60 or not tracking.isascii() or not tracking.isalnum():
         raise InvalidInput("运单号不合法")
-    moment = _moment(now)
-    with transaction.atomic():
-        moved = Order.objects.filter(pk=order.pk, status=WAITING_SHIP).update(
-            status=WAITING_RECEIPT,
-            tracking_no=tracking,
-            shipped_at=moment,
-            auto_confirm_at=_auto_confirm_at(order, moment),
-            version=F("version") + 1,
-        )
-        if moved != 1:
-            raise OrderConflict("订单已发货，重复确认发货只生效一次")
-        order.refresh_from_db()
-    _allow(actor, "order.ship", order=order, detail={"tracking_no": tracking})
-    return order
+    order.status, order.tracking_no, order.shipped_at = WAITING_RECEIPT, tracking, moment
+    order.auto_confirm_at = _auto_confirm_at(order, moment)
+    order.version += 1
+    order.save(update_fields=["status", "tracking_no", "shipped_at", "auto_confirm_at", "version"])
+    return True
 
 
 def _settle(order: Order, *, now=None) -> Settlement:
@@ -425,7 +440,9 @@ def confirm_receipt(order: Order, *, actor: object, now=None) -> Order:
         actor,
         "order.receive",
         order=order,
-        detail={"fee": str(settlement.fee), "seller_net": str(settlement.seller_net)},
+        detail={"from": WAITING_RECEIPT, "to": COMPLETED,
+                "received_at": order.received_at.isoformat(), "fee": str(settlement.fee),
+                "seller_net": str(settlement.seller_net)},
     )
     return order
 
@@ -441,50 +458,68 @@ def _has_paid(order: Order) -> bool:
     ).exists()
 
 
-def request_refund(  # pylint: disable=unused-argument
+def can_self_refund(order, *, now=None):
+    """UI hint; authoritative services still recheck under locks."""
+    return bool(order.status == WAITING_SHIP and order.paid_at
+                and _moment(now) < order.paid_at + BUYER_REFUND_WINDOW)
+
+
+def can_ship(order, *, now=None):
+    """Whether this waiting order is still inside its shipping period."""
+    return bool(order.status == WAITING_SHIP and order.paid_at
+                and _moment(now) < order.paid_at + AUTO_REFUND_DEADLINE)
+
+
+def request_refund(
     order: Order, *, actor: object, reason: str = "", now=None
 ) -> Order:
     """未发货全额退款：订单已退款，商品恢复已发布或已预售（REQ-016）。
 
-    买家自助申请；客服裁定同样走这里。已发货后的退货不在一期，转线下。
+    买家本人自助申请；工作人员只能从纠纷裁定入口操作。
     """
-    allowed = can(actor, "order.refund_request", owner_id=order.buyer_id) or can(
-        actor, "order.refund"
-    )
-    if not allowed:
+    if not can(actor, "order.refund_request", owner_id=order.buyer_id):
         _deny(actor, "order.refund_request", "无权申请退款", order=order)
-    if order.status != WAITING_SHIP:
-        raise OrderConflict("只有未发货订单可以全额退款；已发货后的退货不在一期")
-    if not _has_paid(order):
-        raise OrderConflict("订单尚未支付，没有可退款项")
-    text = reason or "未发货全额退款"
     with transaction.atomic():
         Product.objects.select_for_update().get(pk=order.product_id)
-        moved = Order.objects.filter(pk=order.pk, status=WAITING_SHIP).update(
-            status=REFUNDED, close_reason=text[:200], version=F("version") + 1
-        )
-        if moved != 1:
-            raise OrderConflict("订单状态已变更")
-        order.refresh_from_db()
-        _restore_product(order)
-        Refund.objects.create(order=order, amount=order.amount, reason=text[:200])
-    _allow(actor, "order.refund", order=order, detail={"reason": text})
+        order.refresh_from_db(from_queryset=Order.objects.select_for_update())
+        moment = _moment(now)
+        if order.status != WAITING_SHIP:
+            raise OrderConflict("只有未发货订单可以全额退款；已发货后的退货不在一期")
+        if not order.paid_at or not _has_paid(order):
+            raise OrderConflict("订单尚未支付，没有可退款项")
+        if not _auto_refund(order, now=moment):
+            if not can_self_refund(order, now=moment):
+                raise OrderConflict("付款已满 48 小时，不可自助退款")
+            _refund_unshipped(order, actor, str(reason or "未发货全额退款")[:200], moment)
     return order
 
 
-def _auto_refund(order: Order) -> None:
-    """系统自动退款：超过 15 天仍未发货（REQ-015）。"""
+def _refund_unshipped(order, actor, reason, moment):
+    order.status, order.close_reason, order.refunded_at = REFUNDED, reason, moment
+    order.version += 1
+    order.save(update_fields=["status", "close_reason", "refunded_at", "version"])
+    _restore_product(order)
+    Refund.objects.create(order=order, amount=order.amount, reason=reason)
+    _allow(actor, "order.refund", order=order, detail={
+        "from": WAITING_SHIP, "to": REFUNDED, "reason": reason,
+        "amount": str(order.amount), "refunded_at": moment.isoformat(),
+    })
+
+
+def _auto_refund(order: Order, *, now) -> bool:
+    """Called under the product and order locks by the scheduler and action guards."""
+    if order.status != WAITING_SHIP or not order.paid_at:
+        return False
+    if now < order.paid_at + AUTO_REFUND_DEADLINE:
+        return False
+    _refund_unshipped(order, None, "已满 15 天未发货，系统自动全额退款", now)
+    return True
+
+
+def _sweep_unshipped(order, moment):
     with transaction.atomic():
         Product.objects.select_for_update().get(pk=order.product_id)
-        moved = Order.objects.filter(pk=order.pk, status=WAITING_SHIP).update(
-            status=REFUNDED, close_reason="超过 15 天未发货，系统自动全额退款", version=F("version") + 1
-        )
-        if moved != 1:
-            return
-        order.refresh_from_db()
-        _restore_product(order)
-        Refund.objects.create(order=order, amount=order.amount, reason="超过 15 天未发货自动退款")
-    _allow(None, "order.refund", order=order, detail={"reason": "超过 15 天未发货自动退款"})
+        return _auto_refund(Order.objects.select_for_update().get(pk=order.pk), now=moment)
 
 
 # 纠纷介入可以接手的订单状态（REQ-019：介入后订单转纠纷中，未发货就得等裁定）。
@@ -548,7 +583,7 @@ def refund_after_dispute(
     with transaction.atomic():
         Product.objects.select_for_update().get(pk=order.product_id)
         moved = Order.objects.filter(pk=order.pk, status__in=REFUNDABLE_DISPUTE).update(
-            status=REFUNDED, close_reason=text, version=F("version") + 1
+            status=REFUNDED, close_reason=text, refunded_at=_moment(None), version=F("version") + 1
         )
         if moved != 1:
             raise OrderConflict("订单状态已变更")
@@ -558,7 +593,10 @@ def refund_after_dispute(
         else:
             _restore_product(order)
         Refund.objects.create(order=order, amount=order.amount, reason=text)
-    _allow(actor, "order.refund", order=order, detail={"reason": text})
+    _allow(actor, "order.refund", order=order, detail={
+        "reason": text, "to": REFUNDED, "amount": str(order.amount),
+        "refunded_at": order.refunded_at.isoformat(),
+    })
     return order
 
 
@@ -606,8 +644,7 @@ def sweep(*, now=None) -> int:
         status=WAITING_SHIP, paid_at__isnull=False, paid_at__lte=moment - AUTO_REFUND_DEADLINE
     )
     for order in overdue:
-        _auto_refund(order)
-        closed += 1
+        closed += _sweep_unshipped(order, moment)
     waiting = Order.objects.filter(status=WAITING_RECEIPT, auto_confirm_at__lte=moment)
     for order in waiting.select_related("buyer", "seller", "product"):
         try:
@@ -646,6 +683,7 @@ def create_presale_order(reservation: Reservation, *, now=None) -> Order:
             source_reservation=reservation,
             status=WAITING_SHIP,
             amount=total,
+            product_snapshot=for_document(reservation),
             deposit_amount=reservation.deposit,
             final_amount=reservation.final_amount,
             paid_at=moment,

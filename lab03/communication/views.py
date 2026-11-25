@@ -9,6 +9,7 @@ from __future__ import annotations
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
+from catalog.history import for_document, latest_for_buyer
 from catalog.imagery import thumbnail
 from common.api import json_body, json_errors, optional_int
 
@@ -34,19 +35,25 @@ def _dispute(pk: int) -> HttpResponse | Dispute:
     return dispute
 
 
-def _row(conversation: Conversation) -> dict:
+def _row(conversation: Conversation, actor) -> dict:
     """会话的对外表示。"""
     order = conversation.order
+    frozen = for_document(order) if order else None
+    if not order and actor.pk == conversation.buyer_id:
+        frozen = latest_for_buyer(actor, conversation.product_id)
+    price = frozen.get("price") if frozen is not None else conversation.product.price
     return {
         "id": conversation.pk,
         "product_id": conversation.product_id,
         "buyer_id": conversation.buyer_id,
         "seller_id": conversation.seller_id,
         "order_id": conversation.order_id,
-        "title": conversation.product.title,
-        "price": str(order.amount if order else conversation.product.price),
+        "title": (frozen.get("title", "历史商品") if frozen is not None
+                  else conversation.product.title),
+        "price": str(order.amount if order else price or "—"),
         "order_status": order.status if order else None,
-        "thumbnail": getattr(conversation, "thumbnail", None),
+        "thumbnail": (frozen.get("thumbnail") if frozen is not None
+                      else getattr(conversation, "thumbnail", None)),
         "created_at": conversation.created_at.isoformat(),
         "last_message_at": (
             conversation.last_message_at.isoformat() if conversation.last_message_at else None
@@ -110,9 +117,9 @@ def chats(request: HttpRequest) -> HttpResponse:
             optional_int(data.get("product_id"), "product_id"),
             order_id=optional_int(data.get("order_id"), "order_id"),
         )
-        return JsonResponse(_row(conversation), status=201)
+        return JsonResponse(_row(conversation, request.user), status=201)
     visible = services.list_conversations(request.user).select_related("product", "order")
-    rows = [_row(item) for item in visible]
+    rows = [_row(item, request.user) for item in visible]
     return JsonResponse({"items": rows})
 
 
@@ -133,7 +140,7 @@ def chat_detail(request: HttpRequest, pk: int) -> HttpResponse:
     return JsonResponse(
         {
             "id": conversation.pk,
-            "conversation": _row(conversation),
+            "conversation": _row(conversation, request.user),
             "items": items,
             "signals": [
                 {

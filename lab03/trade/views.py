@@ -6,11 +6,17 @@ from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
+from audit.models import RESULT_DENIED, record
+from catalog.history import for_document
 from catalog.models import Product
 from common.api import json_body, json_errors, optional_int
+from common.errors import Conflict, InvalidInput
 
 from . import services
 from .models import Order
+
+ORDER_ACTIONS = {"pay": "order.pay", "cancel": "order.cancel", "ship": "order.ship",
+                 "receive": "order.receive", "refund": "order.refund_request"}
 
 
 def _order(pk: int) -> HttpResponse | Order:
@@ -26,6 +32,7 @@ def _row(order: Order) -> dict:
     return {
         "id": order.pk,
         "product_id": order.product_id,
+        "product_snapshot": for_document(order),
         "status": order.status,
         "amount": str(order.amount),
         "is_presale": order.is_presale,
@@ -34,6 +41,7 @@ def _row(order: Order) -> dict:
             order.auto_confirm_at.isoformat() if order.auto_confirm_at else None
         ),
         "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+        "refunded_at": order.refunded_at.isoformat() if order.refunded_at else None,
         "tracking_no": order.tracking_no,
         "close_reason": order.close_reason,
     }
@@ -95,12 +103,23 @@ def order_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
     order = _order(pk)
     if isinstance(order, HttpResponse):
         return order
-    data = json_body(request)
-    actor = request.user
+    if action not in ORDER_ACTIONS:
+        return JsonResponse({"error": "未知订单操作"}, status=404)
+    try:
+        if action == "pay" and not settings.SIMULATED_PAYMENTS:
+            return JsonResponse({"error": "未启用模拟支付，真实支付渠道未配置"}, status=503)
+        _apply_action(order, request.user, action, json_body(request))
+    except (Conflict, InvalidInput) as exc:
+        record(action=ORDER_ACTIONS[action], result=RESULT_DENIED, actor=request.user,
+               target_type="order", target_id=order.pk, detail={
+                   "order_id": order.pk, "product_id": order.product_id, "reason": str(exc),
+               })
+        raise
+    order.refresh_from_db()
+    return JsonResponse(_row(order))
 
-    if action == "pay" and not settings.SIMULATED_PAYMENTS:
-        return JsonResponse({"error": "未启用模拟支付，真实支付渠道未配置"}, status=503)
 
+def _apply_action(order, actor, action, data):
     if action == "pay":
         services.pay(
             order,
@@ -114,10 +133,5 @@ def order_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
         services.ship(order, actor=actor, tracking_no=data.get("tracking_no", ""))
     elif action == "receive":
         services.confirm_receipt(order, actor=actor)
-    elif action == "refund":
-        services.request_refund(order, actor=actor, reason=data.get("reason", ""))
     else:
-        return JsonResponse({"error": f"未知动作 {action}"}, status=404)
-
-    order.refresh_from_db()
-    return JsonResponse(_row(order))
+        services.request_refund(order, actor=actor, reason=data.get("reason", ""))

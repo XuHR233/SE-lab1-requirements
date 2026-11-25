@@ -7,8 +7,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import ROLE_ADMIN
 from accounts.permissions import role_of
 from catalog.search import visible_to
-from common.api import json_body, json_errors
-from trade.models import Order
+from common.api import json_body, json_errors, optional_int
+from common.errors import InvalidInput
+from trade.models import COMPLETED, Order
 
 from . import services
 from .models import Appeal, Review
@@ -49,14 +50,19 @@ def raise_appeal(request, review_id):
 
 
 @require_GET
+@json_errors
 def appeal_queue(request):
     """管理员查看待处理及超期提醒。"""
     if role_of(request.user) != ROLE_ADMIN:
         return JsonResponse({"error": "只有管理员可查看"}, status=403)
+    page = optional_int(request.GET.get("page", 1), "页码")
+    if page is None or not 1 <= page <= 100000:
+        raise InvalidInput("页码超出范围")
     pending = Appeal.objects.filter(resolved_at__isnull=True).order_by("due_at", "id")
-    return JsonResponse({"pending": list(pending.values(
-        "id", "review_id", "reason", "due_at", "reminded_at"
-    )[:100])})
+    offset = (page - 1) * 100
+    fields = pending.values("id", "review_id", "reason", "due_at", "reminded_at")
+    rows = list(fields[offset:offset + 101])
+    return JsonResponse({"pending": rows[:100], "page": page, "has_next": len(rows) > 100})
 
 
 @require_POST
@@ -72,6 +78,15 @@ def resolve_appeal(request, appeal_id):
 @require_GET
 def product_reviews(request, product_id):
     """按指定商品展示有效评价。"""
-    get_object_or_404(visible_to(request.user), pk=product_id)
-    entries = visible_reviews(order__product_id=product_id).order_by("-id")[:100]
+    entries = visible_reviews(order__product_id=product_id)
+    if not visible_to(request.user).filter(pk=product_id).exists():
+        if not request.user.is_authenticated:
+            return JsonResponse({"error": "商品不存在"}, status=404)
+        historical = Order.objects.filter(
+            product_id=product_id, buyer=request.user, status=COMPLETED,
+        )
+        if not historical.exists():
+            return JsonResponse({"error": "商品不存在"}, status=404)
+        entries = entries.filter(order__in=historical)
+    entries = entries.order_by("-id")[:100]
     return JsonResponse({"reviews": [review_payload(review) for review in entries]})

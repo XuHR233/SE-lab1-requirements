@@ -4,6 +4,7 @@ from django.db.models import Count, Prefetch
 
 from accounts.models import ROLE_ADMIN, ROLE_MEMBER
 from accounts.permissions import role_of
+from catalog.history import for_document
 from catalog.imagery import thumbnail
 from catalog.models import DELETED, LOCKED, OFFSHELF, PENDING, PRESALE, PUBLISHED, Product
 from communication import services as chats
@@ -38,20 +39,25 @@ def _review_rows(order):
     ]
 
 
+def _item(document):
+    frozen = for_document(document)
+    return {"title": frozen.get("title", "历史商品"), "description": frozen.get("description", ""),
+            "thumbnail": frozen.get("thumbnail"), "category": frozen.get("category") or "—"}
+
+
 def orders_for(actor):
     """同订单 API 的可见性；附上互评及真实账面结算摘要。"""
     reviews = Review.objects.filter(hidden_at__isnull=True, deleted_at__isnull=True)
-    rows = trade.orders_for(actor).select_related("product__category", "settlement", "dispute")
-    rows = rows.annotate(thumbnail=thumbnail("product_id"))
+    rows = trade.orders_for(actor).select_related("settlement", "dispute")
     rows = rows.prefetch_related(Prefetch("reviews", reviews.select_related("appeal"),
                                          to_attr="desk_reviews"))[:100]
     return [
-        {"id": row.pk, "title": row.product.title, "product_id": row.product_id,
+        {"id": row.pk, "product_id": row.product_id, **_item(row),
          "buyer_id": row.buyer_id, "seller_id": row.seller_id, "status": row.status,
          "amount": row.amount, "is_presale": row.is_presale, "expires_at": row.expires_at,
-         "thumbnail": row.thumbnail, "description": row.product.description,
-         "category": row.product.category.name, "created_at": row.created_at,
+         "created_at": row.created_at,
          "paid_at": row.paid_at, "shipped_at": row.shipped_at, "received_at": row.received_at,
+         "can_self_refund": trade.can_self_refund(row), "can_ship": trade.can_ship(row),
          "auto_confirm_at": row.auto_confirm_at, "tracking_no": row.tracking_no,
          "close_reason": row.close_reason, "reviews": _review_rows(row),
          "has_dispute": hasattr(row, "dispute"),
@@ -64,15 +70,13 @@ def orders_for(actor):
 
 def reservations_for(actor):
     """同预约 API 的可见性；计算界面展示用的尾款起点。"""
-    rows = reservations.reservations_for(actor).select_related("product", "order")
-    rows = rows.annotate(thumbnail=thumbnail("product_id"))[:100]
+    rows = reservations.reservations_for(actor).select_related("order")[:100]
     return [
-        {"id": row.pk, "title": row.product.title, "buyer_id": row.buyer_id,
+        {"id": row.pk, **_item(row), "buyer_id": row.buyer_id,
          "seller_id": row.seller_id, "status": row.status, "deposit": row.deposit,
          "final_amount": row.final_amount, "deposit_due_at": row.deposit_due_at,
          "expires_at": row.expires_at, "final_due_at": row.final_due_at,
-         "thumbnail": row.thumbnail, "created_at": row.created_at,
-         "description": row.product.description,
+         "created_at": row.created_at,
          "final_start": row.final_due_at - FINAL_WINDOW if row.final_due_at else None,
          "refund_due": row.refund_due, "close_reason": row.close_reason,
          "order_id": row.order.pk if hasattr(row, "order") else None}

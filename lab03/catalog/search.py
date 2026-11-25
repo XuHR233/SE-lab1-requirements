@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Max, Q, QuerySet
+from django.db.models import F, Max, Q, QuerySet
 
 from accounts.models import ROLE_GUEST
 from accounts.permissions import STAFF_ROLES, role_of
@@ -17,8 +17,6 @@ from accounts.permissions import STAFF_ROLES, role_of
 from .models import PRESALE, PUBLISHED, Product
 
 SORT_CHOICES: dict[str, tuple[str, ...]] = {
-    "newest": ("-created_at", "-id"),
-    "oldest": ("created_at", "id"),
     "price_asc": ("price", "id"),
     "price_desc": ("-price", "-id"),
 }
@@ -43,8 +41,8 @@ def listable() -> QuerySet[Product]:
 def visible_to(user: object) -> QuerySet[Product]:
     """详情口径：能打开哪些商品的详情页（REQ-003/012）。
 
-    已售出、已预售被预约的商品不在任何人的列表与搜索里，但买家可以凭自己那条预约或订单、
-    卖家可以凭自己的商品进详情；管理员与客服按职责看任意状态（REQ-003/006/012）。
+    非公开商品只允许卖家、当前订单或预约的买家及工作人员查看当前详情。
+    历史买家从自己的业务单据读取快照，不继承当前详情或图片权限。
     """
     products = Product.objects.all()
     role = role_of(user)
@@ -56,9 +54,12 @@ def visible_to(user: object) -> QuerySet[Product]:
     party = getattr(user, "pk", None)
     party_scope = (
         Q(seller_id=party)
-        | Q(orders__buyer_id=party)
-        | Q(reservations__buyer_id=party)
     )
+    from reservations.models import ACTIVE_STATUSES as ACTIVE_RESERVATIONS  # pylint: disable=import-outside-toplevel
+    from trade.models import ACTIVE_STATUSES as ACTIVE_ORDERS  # pylint: disable=import-outside-toplevel
+
+    party_scope |= Q(orders__buyer_id=party, orders__status__in=ACTIVE_ORDERS)
+    party_scope |= Q(reservations__buyer_id=party, reservations__status__in=ACTIVE_RESERVATIONS)
     return products.filter(Q(pk__in=public.values_list("pk", flat=True)) | party_scope).distinct()
 
 
@@ -92,6 +93,8 @@ def _price_bounds(
 
 
 def _publication_filters(products, status, period):
+    products = products.annotate(published_at=Max("audits__audited_at",
+                                                  filter=Q(audits__approve=True)))
     if status:
         if status not in PUBLIC_STATUSES:
             return products.none()
@@ -99,13 +102,10 @@ def _publication_filters(products, status, period):
     start, end = period
     if start and end and start >= end:
         raise ValueError("发布时间起点必须早于终点")
-    if start or end:
-        products = products.annotate(published_at=Max("audits__audited_at",
-                                                      filter=Q(audits__approve=True)))
-        if start:
-            products = products.filter(published_at__gte=start)
-        if end:
-            products = products.filter(published_at__lt=end)
+    if start:
+        products = products.filter(published_at__gte=start)
+    if end:
+        products = products.filter(published_at__lt=end)
     return products
 
 
@@ -135,7 +135,12 @@ def search(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         products = products.filter(price__gte=low)
     if high is not None:
         products = products.filter(price__lte=high)
-    products = products.order_by(*SORT_CHOICES.get(sort, SORT_CHOICES["newest"]))
+    if sort in SORT_CHOICES:
+        products = products.order_by(*SORT_CHOICES[sort])
+    elif sort == "oldest":
+        products = products.order_by(F("published_at").asc(nulls_last=True), "id")
+    else:
+        products = products.order_by(F("published_at").desc(nulls_last=True), "-id")
     current = page if isinstance(page, int) and page > 0 else 1
     offset = (current - 1) * PAGE_SIZE
     return products[offset : offset + PAGE_SIZE]

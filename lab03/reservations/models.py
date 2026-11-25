@@ -90,6 +90,7 @@ class Reservation(models.Model):  # pylint: disable=too-many-instance-attributes
     arrived_at = models.DateTimeField("确认到货时间", null=True, blank=True)
     final_due_at = models.DateTimeField("尾款截止时间", null=True, blank=True)
     request_key = models.CharField("请求标识", max_length=64, blank=True)
+    product_snapshot = models.JSONField("预约商品快照", default=dict, blank=True)
     refund_due = models.DecimalField(
         "应原路退回的定金", max_digits=10, decimal_places=2, default=Decimal("0")
     )

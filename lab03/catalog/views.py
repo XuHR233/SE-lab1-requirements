@@ -52,6 +52,7 @@ def _row(product: Product) -> dict:
         "brand": product.brand,
         "description": product.description,
         "thumbnail": getattr(product, "thumbnail", None),
+        "published_at": getattr(product, "published_at", None),
     }
 
 
@@ -102,9 +103,9 @@ def products(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET"])
 def product_detail(request: HttpRequest, pk: int) -> HttpResponse:
     """商品详情：看不见的商品一律当不存在，避免泄露草稿与违规内容。"""
-    if not visible_to(request.user).filter(pk=pk).exists():
+    product = visible_to(request.user).annotate(thumbnail=thumbnail()).filter(pk=pk).first()
+    if product is None:
         return JsonResponse({"error": "商品不存在"}, status=404)
-    product = Product.objects.annotate(thumbnail=thumbnail()).get(pk=pk)
     return JsonResponse(_row(product))
 
 

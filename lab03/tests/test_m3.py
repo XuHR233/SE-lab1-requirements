@@ -264,7 +264,7 @@ def test_final_overdue_closes_without_refund(presale, buyer):
 
 
 def test_sweep_closes_expired_and_overdue(presale, buyer, other):
-    """定时清理把有效期届满与尾款逾期都归入已取消（REQ-006）。"""
+    """卖家未按期确认到货时全额退定金并下架。"""
     base = timezone.now()
     reservation = reserve_now(presale, buyer, now=base)
     pay_deposit(reservation, actor=buyer, txn_no="D-011", now=base + timedelta(minutes=1))
@@ -273,8 +273,10 @@ def test_sweep_closes_expired_and_overdue(presale, buyer, other):
     assert reservation.status == CANCELED
     assert reservation.refund_due == presale.deposit
     assert Reservation.objects.filter(product=presale, status__in=ACTIVE_STATUSES).count() == 0
-    again = reserve_now(presale, other, now=base + timedelta(days=32))
-    assert again.status == WAITING_DEPOSIT
+    presale.refresh_from_db()
+    assert presale.status == "已下架"
+    with pytest.raises(ReservationConflict, match="只有已预售"):
+        reserve_now(presale, other, now=base + timedelta(days=32))
 
 
 def test_valid_days_bounds(presale, buyer):

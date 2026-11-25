@@ -7,6 +7,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from catalog.models import Product
+from catalog.history import for_document
 from common.api import json_body, json_errors, optional_int
 
 from . import services
@@ -26,6 +27,7 @@ def _row(reservation: Reservation) -> dict:
     return {
         "id": reservation.pk,
         "product_id": reservation.product_id,
+        "product_snapshot": for_document(reservation),
         "status": reservation.status,
         "deposit": str(reservation.deposit),
         "final_amount": str(reservation.final_amount),

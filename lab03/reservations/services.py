@@ -20,7 +20,9 @@ from django.db.models import Q, QuerySet
 from accounts.models import ROLE_ADMIN, ROLE_SUPPORT
 from accounts.permissions import can, role_of
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
-from catalog.models import PRESALE, Product
+from catalog.history import capture
+from catalog.models import OFFSHELF, PRESALE, Product
+from catalog.state import transit
 from common.errors import Conflict, InvalidInput
 from common.timebox import FINAL_WINDOW, next_day_window_end
 from demo.clock import business_now
@@ -166,6 +168,7 @@ def reserve(
                 status=WAITING_DEPOSIT,
                 deposit=product.deposit,
                 final_amount=product.final_amount,
+                product_snapshot=capture(product),
                 deposit_due_at=moment + DEPOSIT_WINDOW,
                 expires_at=moment + timedelta(days=days),
                 request_key=str(request_key or "")[:64],
@@ -233,18 +236,7 @@ def seller_confirm(reservation: Reservation, *, actor: object, now=None) -> Rese
     """卖家确认预约：待确认→待到货，等卖家到货后再点「确认到货」（REQ-006）。"""
     if not can(actor, "reservation.confirm", owner_id=reservation.seller_id):
         _deny(actor, "reservation.confirm", "只有卖家本人可以确认预约", reservation=reservation)
-    if reservation.status != AWAITING_SELLER:
-        raise ReservationConflict(f"{reservation.status} 状态不能确认预约")
-    moment = _moment(now)
-    with transaction.atomic():
-        moved = Reservation.objects.filter(pk=reservation.pk, status=AWAITING_SELLER).update(
-            status=WAITING_ARRIVAL, seller_confirmed_at=moment
-        )
-        if moved != 1:
-            raise ReservationConflict("预约状态已变更")
-        reservation.refresh_from_db()
-    _allow(actor, "reservation.confirm", reservation=reservation)
-    return reservation
+    return _seller_advance(reservation, actor, AWAITING_SELLER, now)
 
 
 def seller_reject(
@@ -253,10 +245,16 @@ def seller_reject(
     """卖家拒绝预约：定金全额原路退回并放货（REQ-006）。"""
     if not can(actor, "reservation.confirm", owner_id=reservation.seller_id):
         _deny(actor, "reservation.confirm", "只有卖家本人可以拒绝预约", reservation=reservation)
-    if reservation.status != AWAITING_SELLER:
-        raise ReservationConflict(f"{reservation.status} 状态不能拒绝预约")
     text = reason or "卖家拒绝预约"
-    closed = _close(reservation, REJECTED, reason=text, refund=reservation.deposit, now=now)
+    with transaction.atomic():
+        product = Product.objects.select_for_update().get(pk=reservation.product_id)
+        reservation.refresh_from_db(from_queryset=Reservation.objects.select_for_update())
+        moment = _moment(now)
+        if _expire_unarrived(product, reservation, moment):
+            return reservation
+        if reservation.status != AWAITING_SELLER:
+            raise ReservationConflict(f"{reservation.status} 状态不能拒绝预约")
+        closed = _close(reservation, REJECTED, reason=text, refund=reservation.deposit, now=moment)
     _allow(actor, "reservation.confirm", reservation=closed, detail={"reason": text})
     return closed
 
@@ -265,22 +263,46 @@ def confirm_arrival(reservation: Reservation, *, actor: object, now=None) -> Res
     """卖家确认到货：待付尾款窗口从下一天 00:00 起满 24 小时（REQ-006/016）。"""
     if not can(actor, "reservation.confirm", owner_id=reservation.seller_id):
         _deny(actor, "reservation.confirm", "只有卖家本人可以确认到货", reservation=reservation)
-    if reservation.status != WAITING_ARRIVAL:
-        raise ReservationConflict(f"{reservation.status} 状态不能确认到货")
-    moment = _moment(now)
+    return _seller_advance(reservation, actor, WAITING_ARRIVAL, now)
+
+
+def _expire_unarrived(product, reservation, moment):
+    """Close and refund a paid reservation with no arrival under the product lock."""
+    if (reservation.status not in (AWAITING_SELLER, WAITING_ARRIVAL)
+            or moment < reservation.expires_at):
+        return False
+    previous = reservation.status
+    reason = "卖家未在预约有效期内确认到货，定金全额退回，商品自动下架"
+    _close(reservation, CANCELED, reason=reason, refund=reservation.deposit, now=moment)
+    transit(product, OFFSHELF, bump_version=True)
+    _allow(None, "reservation.cancel", reservation=reservation, detail={
+        "from": previous, "to": CANCELED, "reason": reason,
+        "refund": str(reservation.deposit), "product_id": product.pk, "product_status": OFFSHELF,
+    })
+    return True
+
+
+def _seller_advance(reservation, actor, previous, now):
     with transaction.atomic():
-        moved = Reservation.objects.filter(pk=reservation.pk, status=WAITING_ARRIVAL).update(
-            status=WAITING_FINAL, arrived_at=moment, final_due_at=next_day_window_end(moment)
-        )
-        if moved != 1:
-            raise ReservationConflict("预约状态已变更")
-        reservation.refresh_from_db()
-    _allow(
-        actor,
-        "reservation.confirm",
-        reservation=reservation,
-        detail={"final_due_at": reservation.final_due_at.isoformat()},
-    )
+        product = Product.objects.select_for_update().get(pk=reservation.product_id)
+        reservation.refresh_from_db(from_queryset=Reservation.objects.select_for_update())
+        moment = _moment(now)
+        expired = _expire_unarrived(product, reservation, moment)
+        if not expired:
+            if reservation.status != previous:
+                raise ReservationConflict(f"{reservation.status} 状态不能执行该操作")
+            fields = {"status": WAITING_ARRIVAL, "seller_confirmed_at": moment}
+            if previous == WAITING_ARRIVAL:
+                fields = {"status": WAITING_FINAL, "arrived_at": moment,
+                          "final_due_at": next_day_window_end(moment)}
+            Reservation.objects.filter(pk=reservation.pk).update(**fields)
+            reservation.refresh_from_db()
+    if expired:
+        raise ReservationConflict("预约已到期，定金已退回且商品已下架")
+    detail = {"from": previous, "to": reservation.status}
+    if reservation.final_due_at:
+        detail["final_due_at"] = reservation.final_due_at.isoformat()
+    _allow(actor, "reservation.confirm", reservation=reservation, detail=detail)
     return reservation
 
 
@@ -345,12 +367,18 @@ def cancel(reservation: Reservation, *, actor: object, reason: str = "", now=Non
     party = getattr(actor, "pk", None)
     if party not in (reservation.buyer_id, reservation.seller_id):
         _deny(actor, "reservation.cancel", "只有预约双方可以取消预约", reservation=reservation)
-    if reservation.status not in ACTIVE_STATUSES:
-        raise ReservationConflict(f"{reservation.status} 状态不能取消")
     is_seller = party == reservation.seller_id
-    refund, status = _cancel_terms(reservation, is_seller=is_seller)
-    text = reason or ("卖家取消预约" if is_seller else "买家取消预约")
-    closed = _close(reservation, status, reason=text, refund=refund, now=now)
+    with transaction.atomic():
+        product = Product.objects.select_for_update().get(pk=reservation.product_id)
+        reservation.refresh_from_db(from_queryset=Reservation.objects.select_for_update())
+        moment = _moment(now)
+        if _expire_unarrived(product, reservation, moment):
+            return reservation
+        if reservation.status not in ACTIVE_STATUSES:
+            raise ReservationConflict(f"{reservation.status} 状态不能取消")
+        refund, status = _cancel_terms(reservation, is_seller=is_seller)
+        text = reason or ("卖家取消预约" if is_seller else "买家取消预约")
+        closed = _close(reservation, status, reason=text, refund=refund, now=moment)
     _allow(
         actor,
         "reservation.cancel",
@@ -402,14 +430,10 @@ def sweep(*, now=None) -> int:
     for reservation in Reservation.objects.filter(
         status__in=(AWAITING_SELLER, WAITING_ARRIVAL), expires_at__lte=moment
     ):
-        _close(
-            reservation,
-            CANCELED,
-            reason="预约有效期届满，定金全额原路退回",
-            refund=reservation.deposit,
-            now=moment,
-        )
-        closed += 1
+        with transaction.atomic():
+            product = Product.objects.select_for_update().get(pk=reservation.product_id)
+            current = Reservation.objects.select_for_update().get(pk=reservation.pk)
+            closed += _expire_unarrived(product, current, moment)
     for reservation in Reservation.objects.filter(
         status=WAITING_FINAL, final_due_at__lte=moment
     ):
