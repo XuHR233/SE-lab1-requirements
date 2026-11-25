@@ -7,11 +7,12 @@ import re
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth import login as sign_in
+from django.contrib.auth import logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 from .models import User
 
@@ -31,7 +32,8 @@ def register(request: HttpRequest) -> JsonResponse:
     if not PHONE_RE.match(phone):
         return _fail("手机号格式不正确")
     # ponytail: 短信为开发期桩，接真实通道时替换成 verify_code()
-    if code != settings.SMS_DEV_CODE:
+    skip = settings.DEMO_UI and settings.DEMO_SMS_SKIP and request.POST.get("skip_sms") == "1"
+    if not skip and (not settings.SMS_DEV_CODE or code != settings.SMS_DEV_CODE):
         return _fail("验证码不正确")
     try:
         validate_password(password)
@@ -58,3 +60,10 @@ def sign_in_view(request: HttpRequest) -> JsonResponse:
         return _fail("手机号或密码不正确")
     sign_in(request, user)
     return JsonResponse({"id": user.pk})
+
+
+@require_POST
+def sign_out_view(request: HttpRequest) -> JsonResponse:
+    """结束当前浏览器会话，保留 CSRF 校验。"""
+    logout(request)
+    return JsonResponse({"logged_out": True})

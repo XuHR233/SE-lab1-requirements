@@ -45,7 +45,9 @@ INSTALLED_APPS = [
     "catalog",
     "reservations",
     "trade",
+    "communication",
     "reviews",
+    "demo",
 ]
 
 MIDDLEWARE = [
@@ -111,6 +113,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ponytail: 短信验证码开发期固定值，接真实短信通道时删掉
 SMS_DEV_CODE = env("SMS_DEV_CODE", "000000")
+SIMULATED_PAYMENTS = env("SIMULATED_PAYMENTS", "0") == "1"
+DEMO_UI = env("DEMO_UI", "0") == "1"
+DEMO_SMS_SKIP = env("DEMO_SMS_SKIP", "0") == "1"
+DEMO_CLOCK = env("DEMO_CLOCK", "0") == "1"
+DEMO_MEDIA_ROOT = Path(env("DEMO_MEDIA_ROOT", str(BASE_DIR / "tmp" / "ui-media")))
 
 AUDIT_RETRY_DIR = Path(env("AUDIT_RETRY_DIR", str(BASE_DIR / "tmp" / "audit-retry")))
 

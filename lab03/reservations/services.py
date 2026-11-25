@@ -16,14 +16,14 @@ from decimal import Decimal
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
-from django.utils import timezone
 
 from accounts.models import ROLE_ADMIN, ROLE_SUPPORT
 from accounts.permissions import can, role_of
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
 from catalog.models import PRESALE, Product
 from common.errors import Conflict, InvalidInput
-from common.timebox import next_day_window_end
+from common.timebox import FINAL_WINDOW, next_day_window_end
+from demo.clock import business_now
 from trade.models import KIND_DEPOSIT, KIND_FINAL, Payment, Refund
 from trade.services import create_presale_order, record_payment
 
@@ -49,7 +49,7 @@ class ReservationConflict(Conflict):
 
 def _moment(now):
     """时间一律走这个入口，测试与定时任务才能传「现在」。"""
-    return now or timezone.now()
+    return now or business_now()
 
 
 def _deny(
@@ -97,7 +97,7 @@ def _close(
     moment = _moment(now)
     with transaction.atomic():
         moved = Reservation.objects.filter(
-            pk=reservation.pk, status__in=ACTIVE_STATUSES
+            pk=reservation.pk, status=reservation.status, status__in=ACTIVE_STATUSES
         ).update(
             status=status,
             close_reason=str(reason or "")[:200],
@@ -154,6 +154,11 @@ def reserve(
         raise InvalidInput("预约有效期必须在 1 到 180 天之间")
     try:
         with transaction.atomic():
+            product = Product.objects.select_for_update().get(pk=product.pk)
+            if product.status != PRESALE:
+                raise ReservationConflict("只有已预售商品可以预约")
+            if expected_version is not None and product.version != expected_version:
+                raise ReservationConflict("商品已被修改，请刷新后重试")
             reservation = Reservation.objects.create(
                 product=product,
                 buyer=buyer,
@@ -182,6 +187,7 @@ def pay_deposit(
     """买家付定金：15 分钟内完成则预约转待确认；超时则关闭且不收钱（REQ-006）。"""
     if not can(actor, "reservation.pay", owner_id=reservation.buyer_id):
         _deny(actor, "reservation.pay", "只有该预约的买家可以支付定金", reservation=reservation)
+    reservation.refresh_from_db()
     if reservation.status != WAITING_DEPOSIT:
         if Payment.objects.filter(reservation=reservation, txn_no=txn_no).exists():
             return reservation
@@ -190,16 +196,24 @@ def pay_deposit(
     if moment >= reservation.deposit_due_at:
         _close(reservation, CANCELED, reason="定金支付超时，预约关闭并放货", now=moment)
         raise ReservationConflict("定金支付已超时，预约已关闭（未收款不涉及退款）")
-    payment, created = record_payment(
-        kind=KIND_DEPOSIT,
-        txn_no=txn_no,
-        amount=reservation.deposit,
-        target=reservation,
-        now=moment,
-    )
-    if not created:
-        return reservation
     with transaction.atomic():
+        Product.objects.select_for_update().get(pk=reservation.product_id)
+        reservation.refresh_from_db()
+        if reservation.status != WAITING_DEPOSIT:
+            if Payment.objects.filter(
+                reservation=reservation, txn_no=txn_no, kind=KIND_DEPOSIT
+            ).exists():
+                return reservation
+            raise ReservationConflict("预约状态已变更")
+        payment, created = record_payment(
+            kind=KIND_DEPOSIT,
+            txn_no=txn_no,
+            amount=reservation.deposit,
+            target=reservation,
+            now=moment,
+        )
+        if not created:
+            return reservation
         moved = Reservation.objects.filter(
             pk=reservation.pk, status=WAITING_DEPOSIT
         ).update(status=AWAITING_SELLER, deposit_paid_at=moment)
@@ -274,24 +288,35 @@ def pay_final(reservation: Reservation, *, actor: object, txn_no: str, now=None)
     """买家付尾款：成功后生成订单、商品转交易中、预约完成（REQ-006）。"""
     if not can(actor, "reservation.pay", owner_id=reservation.buyer_id):
         _deny(actor, "reservation.pay", "只有该预约的买家可以支付尾款", reservation=reservation)
+    reservation.refresh_from_db()
     if reservation.status != WAITING_FINAL:
         raise ReservationConflict(f"{reservation.status} 状态不能支付尾款")
     moment = _moment(now)
     if reservation.final_due_at is None:
         raise ReservationConflict("尚未确认到货，尾款窗口未开启")
+    if moment < reservation.final_due_at - FINAL_WINDOW:
+        raise ReservationConflict("尾款窗口尚未开启，请在确认到货次日支付")
     if moment >= reservation.final_due_at:
         _close(reservation, CANCELED, reason="尾款逾期，预约关闭且定金不退", now=moment)
         raise ReservationConflict("尾款已逾期，预约关闭且定金不退")
-    payment, created = record_payment(
-        kind=KIND_FINAL,
-        txn_no=txn_no,
-        amount=reservation.final_amount,
-        target=reservation,
-        now=moment,
-    )
-    if not created:
-        return reservation
     with transaction.atomic():
+        Product.objects.select_for_update().get(pk=reservation.product_id)
+        reservation.refresh_from_db()
+        if reservation.status != WAITING_FINAL:
+            if Payment.objects.filter(
+                reservation=reservation, txn_no=txn_no, kind=KIND_FINAL
+            ).exists():
+                return reservation
+            raise ReservationConflict("预约状态已变更")
+        payment, created = record_payment(
+            kind=KIND_FINAL,
+            txn_no=txn_no,
+            amount=reservation.final_amount,
+            target=reservation,
+            now=moment,
+        )
+        if not created:
+            return reservation
         moved = Reservation.objects.filter(pk=reservation.pk, status=WAITING_FINAL).update(
             status=COMPLETED, closed_at=moment
         )
@@ -348,16 +373,19 @@ def _cancel_terms(reservation: Reservation, *, is_seller: bool) -> tuple[Decimal
 
 def cancel_for_takedown(product: Product, *, reason: str, now=None) -> int:
     """商品被违规下架：取消有效预约并把已收定金全额原路退回（REQ-006/009）。"""
-    reservation = _active_reservation(product)
-    if reservation is None:
-        return 0
-    _close(
-        reservation,
-        CANCELED,
-        reason=f"商品违规下架：{reason}"[:200],
-        refund=reservation.deposit,
-        now=now,
-    )
+    with transaction.atomic():
+        reservation = Reservation.objects.select_for_update().filter(
+            product=product, status__in=ACTIVE_STATUSES
+        ).first()
+        if reservation is None:
+            return 0
+        _close(
+            reservation,
+            CANCELED,
+            reason=f"商品违规下架：{reason}"[:200],
+            refund=reservation.deposit if reservation.deposit_paid_at else Decimal("0.00"),
+            now=now,
+        )
     _allow(None, "reservation.cancel", reservation=reservation, detail={"reason": "商品违规下架"})
     return 1
 

@@ -20,7 +20,7 @@ pylint config accounts audit catalog tests manage.py
 
 ## 接口
 
-目前只有 JSON 入口（页面在收口期做），挂在 `/api/` 下：
+JSON 接口挂在 `/api/` 下。Atlas 的隔离网页验收与启动步骤见 [验收说明](docs/ATLAS-DEMO.md)，默认不启用演示或模拟支付。
 
 | 方法与路径 | 作用 |
 |---|---|

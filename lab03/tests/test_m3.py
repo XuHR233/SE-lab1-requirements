@@ -21,16 +21,17 @@ from django.utils import timezone
 from audit.models import RESULT_DENIED, OperationLog
 from catalog.models import PRESALE, VIOLATED, Product
 from catalog.search import listable, search, visible_to
-from common.errors import InvalidInput
 from catalog.services import (
     InvalidContent,
-    submit_for_audit,
     StateConflict,
     add_image,
     revise_content,
+    submit_for_audit,
     takedown,
     unpublish,
 )
+from common.errors import InvalidInput
+from common.timebox import FINAL_WINDOW, next_day_window_end
 from reservations.models import (
     ACTIVE_STATUSES,
     AWAITING_SELLER,
@@ -56,7 +57,6 @@ from reservations.services import (
     sweep,
 )
 from tests.conftest import make_presale, make_product
-from common.timebox import next_day_window_end
 from trade.models import KIND_DEPOSIT, Payment, Refund
 
 
@@ -90,7 +90,7 @@ def test_full_presale_chain_closes_as_completed(presale, buyer):
     assert reservation.status == WAITING_FINAL
     assert reservation.final_due_at == next_day_window_end(arrived)
 
-    pay_final(reservation, actor=buyer, txn_no="F-001", now=arrived + timedelta(hours=5))
+    pay_final(reservation, actor=buyer, txn_no="F-001", now=reservation.final_due_at - FINAL_WINDOW)
     assert reservation.status == COMPLETED
     order = reservation.order
     assert order.status == "待发货"
@@ -348,8 +348,6 @@ def test_cancel_for_takedown_is_used_directly(presale, buyer):
 
 def test_reservation_list_scope(presale, buyer, other, support):
     """预约列表：当事人看自己的，客服看全部（REQ-002）。"""
-    from reservations.services import reservations_for  # pylint: disable=import-outside-toplevel
-
     reservation = reserve_now(presale, buyer)
     assert reservations_for(other).count() == 0
     assert reservations_for(presale.seller).count() == 1

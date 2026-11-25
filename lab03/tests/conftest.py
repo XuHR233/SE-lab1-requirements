@@ -25,6 +25,12 @@ from catalog.models import (
 User = get_user_model()
 
 
+@pytest.fixture(autouse=True)
+def enable_simulated_payments(settings):
+    """只有测试进程默认启用模拟支付；部署配置默认关闭。"""
+    settings.SIMULATED_PAYMENTS = True
+
+
 @pytest.fixture
 def category(db):
     """一个分类，所有用例共用。"""

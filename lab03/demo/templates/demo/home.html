@@ -1,0 +1,72 @@
+{% load static %}<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>二手集市 · Lab3 内测</title>
+  <link rel="stylesheet" href="{% static 'demo/lab2-ui.css' %}">
+  <link rel="stylesheet" href="{% static 'demo/lab2-pages.css' %}">
+  <link rel="stylesheet" href="{% static 'demo/live.css' %}">
+  <script type="module" src="{% static 'demo/app.js' %}"></script>
+</head>
+<body>
+  {% if demo_config.role == 'admin' or demo_config.role == 'support' %}
+  <div class="lab2-staff"><div class="shell">
+    <aside class="aside"><div class="logo">二手<span>集市</span> · 后台</div>
+      <nav id="nav" aria-label="后台工作台"></nav>
+    </aside>
+    <div class="adminmain">
+      <header class="adminbar"><span id="role" class="role"></span><span class="role">账号 ID {{ user.pk }}</span>
+        <div class="grow"></div><button id="logout" class="btn" type="button">退出</button></header>
+  {% else %}
+  <header class="topbar">
+    <div class="logo">二手<span>集市</span></div>
+    <form class="search" id="quick-search"><input name="keyword" aria-label="搜索商品" placeholder="搜索商品、品牌、卖家"></form>
+    <nav id="nav" class="nav" aria-label="集市导航"></nav>
+    {% if user.is_authenticated %}
+      <details class="account"><summary class="avatar" aria-label="账号信息">我</summary>
+        <div class="card account-menu"><p>账号 ID {{ user.pk }}</p><p id="role" class="muted small"></p><button type="button" class="btn" id="logout">退出</button></div>
+      </details>
+    {% else %}
+      <button type="button" class="btn" id="login">登录</button>
+      <button type="button" class="btn primary" id="register">注册</button>
+    {% endif %}
+  </header>
+  {% endif %}
+  <main class="wrap live-wrap" id="workspace">
+    <div class="crumb" id="crumb"></div>
+    <div class="page-head"><h1 id="section-title">商品广场</h1><button id="refresh" class="btn ghost" type="button">刷新</button></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="panel" aria-labelledby="section-title"><p>正在加载…</p></section>
+    <noscript>本验收台需要启用 JavaScript。</noscript>
+    <footer class="sandbox-note muted tiny">Atlas 隔离内测 · 请勿填写真实资料 · 不发短信、不扣款、不发货<span id="clock-label"></span></footer>
+  </main>
+  {% if demo_config.role == 'admin' or demo_config.role == 'support' %}</div></div></div>{% endif %}
+  {% if not user.is_authenticated %}
+  <dialog class="lab2-auth auth-dialog" id="auth-dialog" aria-labelledby="auth-title">
+    <div class="auth">
+      {% include 'demo/lab2_brand.html' %}
+      <main class="formside"><div class="box">
+        <h1 id="auth-title">欢迎回来</h1>
+        <p class="sub">登录后可以发布商品、下单、预约和管理订单</p>
+        <div class="tabsline"><button type="button" id="auth-login-tab">密码登录</button><button type="button" id="auth-register-tab">注册</button></div>
+        <form id="auth-form"><div id="auth-fields"></div><p id="auth-error" class="error" role="alert"></p><button id="auth-submit" class="submit">登录</button></form>
+        <div class="other"><button class="nav-link" id="auth-dismiss" type="button">游客可先浏览商品</button></div>
+        <div class="hint">隔离内测：不发送短信，不扣款。请使用虚构手机号。</div>
+      </div></main>
+    </div>
+  </dialog>
+  {% endif %}
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <form id="dialog-form" autocomplete="off">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-intro" class="muted"></p>
+      <div id="dialog-fields"></div>
+      <p id="dialog-error" class="error" role="alert"></p>
+      <div class="actions"><button type="button" class="btn" id="dialog-cancel">返回</button><button class="btn primary" id="dialog-submit">确认</button></div>
+    </form>
+  </dialog>
+  {% include 'demo/lab2_components.html' %}
+  {{ demo_config|json_script:"demo-config" }}
+</body>
+</html>

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Q, QuerySet
+from django.db.models import Max, Q, QuerySet
 
 from accounts.models import ROLE_GUEST
 from accounts.permissions import STAFF_ROLES, role_of
@@ -91,6 +91,24 @@ def _price_bounds(
     return low, high
 
 
+def _publication_filters(products, status, period):
+    if status:
+        if status not in PUBLIC_STATUSES:
+            return products.none()
+        products = products.filter(status=status)
+    start, end = period
+    if start and end and start >= end:
+        raise ValueError("发布时间起点必须早于终点")
+    if start or end:
+        products = products.annotate(published_at=Max("audits__audited_at",
+                                                      filter=Q(audits__approve=True)))
+        if start:
+            products = products.filter(published_at__gte=start)
+        if end:
+            products = products.filter(published_at__lt=end)
+    return products
+
+
 def search(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     *,
     keyword: str | None = None,
@@ -100,9 +118,11 @@ def search(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     price_max: str | None = None,
     sort: str = "newest",
     page: int = 1,
+    status=None,
+    published_period=(None, None),
 ) -> QuerySet[Product]:
     """多条件检索：条件之间是「与」，多关键词之间是「或」（REQ-011/012）。"""
-    products = listable()
+    products = _publication_filters(listable(), status, published_period)
     keyword = (keyword or "").strip()
     if keyword:
         products = products.filter(_keyword_filter(keyword))

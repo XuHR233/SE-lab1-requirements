@@ -38,6 +38,8 @@ def retry_pending(save, *, limit=500):
     for path in sorted(directory.glob("*.json"))[:limit]:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("日志重试事件必须是 JSON 对象")
             save(path.stem, payload)
             path.unlink(missing_ok=True)
             written += 1

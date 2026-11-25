@@ -605,14 +605,7 @@ def takedown(product: Product, *, actor: object, reason: str) -> Product:
         _deny(actor, "product.takedown", "无权执行违规下架", product=product)
     if not str(reason or "").strip():
         raise InvalidContent("违规下架必须填写理由")
-    if not can_transit(product.status, VIOLATED):
-        _deny_transit(product, actor, VIOLATED, f"{product.status} 状态不允许违规下架")
-    transit(product, VIOLATED)
-    from reservations.services import (  # pylint: disable=import-outside-toplevel
-        cancel_for_takedown,
-    )
-
-    cancel_for_takedown(product, reason=str(reason).strip())
+    _apply_takedown(product, reason=str(reason).strip(), actor=actor)
     record(
         action="product.takedown",
         result="allowed",
@@ -622,6 +615,23 @@ def takedown(product: Product, *, actor: object, reason: str) -> Product:
         detail={"reason": str(reason).strip()},
     )
     return product
+
+
+def _apply_takedown(product, *, reason, actor):
+    from reservations.services import cancel_for_takedown  # pylint: disable=import-outside-toplevel
+    from trade.models import CANCELED, WAITING_PAY, Order  # pylint: disable=import-outside-toplevel
+    from trade.services import close_order  # pylint: disable=import-outside-toplevel
+
+    with transaction.atomic():
+        locked = Product.objects.select_for_update().get(pk=product.pk)
+        if can_transit(locked.status, VIOLATED):
+            transit(locked, VIOLATED)
+            cancel_for_takedown(locked, reason=reason)
+            for order in Order.objects.filter(product=locked, status=WAITING_PAY):
+                close_order(order, CANCELED, reason=f"商品违规下架：{reason}")
+            product.refresh_from_db()
+            return
+    _deny_transit(locked, actor, VIOLATED, f"{locked.status} 状态不允许违规下架")
 
 
 def delete_draft(product: Product, *, actor: object) -> Product:

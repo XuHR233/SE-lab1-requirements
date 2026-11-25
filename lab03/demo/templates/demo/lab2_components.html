@@ -1,0 +1,53 @@
+<template id="lab2-order"><section class="order card order-record">
+      <div class="order-head">
+        <span class="shop" data-slot="party"></span>
+        <span data-slot="number"></span>
+        <div class="right" data-slot="status"></div>
+      </div>
+      <div class="order-body">
+        <div class="thumb" data-slot="image"></div>
+        <div class="meta">
+          <div class="title" data-slot="title"></div>
+          <div class="spec" data-slot="spec"></div>
+          <div class="note" data-slot="note"></div>
+        </div>
+        <div class="price"><b data-slot="amount"></b><div class="qty">数量 1</div></div>
+      </div>
+      <div class="order-foot" data-slot="foot"><span class="tip" data-slot="tip"></span></div>
+    </section></template>
+<template id="lab2-reservation"><section class="res card">
+      <div class="res-head">
+        <span class="buyer" data-slot="party"></span>
+        <span data-slot="number"></span>
+        <span data-slot="created"></span>
+        <div class="right" data-slot="status"></div>
+      </div>
+      <div class="res-body">
+        <div class="pimg" data-slot="image"></div>
+        <div class="res-main">
+          <div class="t" data-slot="title"></div><div class="m" data-slot="note"></div><div class="money" data-slot="money"></div>
+        </div>
+      </div>
+      <div class="res-foot" data-slot="foot"><span class="tip" data-slot="tip"></span></div>
+    </section></template>
+<template id="lab2-chat"><section class="chat card">
+      <div class="chat-head">
+        <div class="pimg" data-slot="image"></div>
+        <div>
+          <div class="t" data-slot="title"></div>
+          <div class="m" data-slot="note"></div>
+        </div>
+        <div class="right">
+          <b data-slot="price"></b>
+          <div data-slot="order"></div>
+        </div>
+      </div>
+
+      <div class="msgs" data-slot="thread" aria-label="聊天记录"></div><div class="inputbar" data-slot="composer"></div>
+    </section></template>
+<template id="lab2-inventory"><div class="card table-scroll"><table>
+      <thead>
+        <tr><th>商品</th><th>状态</th><th>价格</th><th>浏览</th><th>最近更新</th><th style="text-align:right">操作</th></tr>
+      </thead>
+      <tbody data-slot="rows"></tbody>
+    </table></div></template>

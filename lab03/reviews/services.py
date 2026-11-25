@@ -13,6 +13,7 @@ from accounts.permissions import role_of
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
 from common.errors import Conflict, InvalidInput
 from common.timebox import local_midnight
+from demo.clock import business_now
 from trade.models import COMPLETED, Order
 
 from .models import Appeal, Review
@@ -68,7 +69,7 @@ def submit(order, actor, *, rating, content="", now=None):
     _validate(rating, content)
     with transaction.atomic():
         order = Order.objects.select_for_update().get(pk=order.pk)
-        _check_author(order, actor, "review.submit", now or timezone.now())
+        _check_author(order, actor, "review.submit", now or business_now())
         target_id = order.seller_id if order.buyer_id == actor.pk else order.buyer_id
         review, created = Review.objects.get_or_create(
             order=order, author=actor, defaults={"target_id": target_id, "rating": rating}
@@ -87,7 +88,7 @@ def delete(order, actor, *, now=None):
     """在窗口内删除自己的展示记录，不擦除历史评分。"""
     with transaction.atomic():
         order = Order.objects.select_for_update().get(pk=order.pk)
-        moment = now or timezone.now()
+        moment = now or business_now()
         _check_author(order, actor, "review.delete", moment)
         count = Review.objects.filter(
             order=order, author=actor, automatic=False, deleted_at__isnull=True
@@ -113,9 +114,14 @@ def appeal(review, actor, *, reason, now=None):
         _deny("review.appeal", review.order, actor, "只有被评价方可申诉")
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 500:
         raise InvalidInput("请填写不超过 500 字的申诉原因")
+    moment = now or business_now()
+    if not review.order.received_at or moment >= deadline(review.order):
+        text = "评价申诉窗口已结束"
+        _log("review.appeal", review.order, actor, RESULT_DENIED, reason=text)
+        raise Conflict(text)
     entry, created = Appeal.objects.get_or_create(
         review=review,
-        defaults={"reason": reason.strip(), "due_at": _appeal_due(now or timezone.now())},
+        defaults={"reason": reason.strip(), "due_at": _appeal_due(moment)},
     )
     if not created:
         raise Conflict("该评价已有申诉")
@@ -130,7 +136,7 @@ def resolve(entry, actor, *, upheld, note, now=None):
     valid_note = isinstance(note, str) and 1 <= len(note.strip()) <= 500
     if not isinstance(upheld, bool) or not valid_note:
         raise InvalidInput("请填写裁定结论和不超过 500 字的处理说明")
-    moment = now or timezone.now()
+    moment = now or business_now()
     with transaction.atomic():
         updated = Appeal.objects.filter(pk=entry.pk, resolved_at__isnull=True).update(
             upheld=upheld, note=note.strip(), resolved_at=moment, handler=actor
@@ -162,7 +168,7 @@ def _auto_review(order_id, moment):
 
 def sweep(*, now=None):
     """补齐缺失的评价，标记待管理员处理的超期申诉。"""
-    moment = now or timezone.now()
+    moment = now or business_now()
     cutoff = local_midnight(moment, days=-14)
     candidates = Order.objects.filter(status=COMPLETED, received_at__lt=cutoff).annotate(
         review_count=Count("reviews")

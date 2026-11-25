@@ -1,0 +1,102 @@
+body { width: auto; height: auto; min-height: 100vh; overflow: auto; }
+[hidden] { display: none !important; }
+button, input, select, textarea { font-family: inherit; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.topbar { flex-wrap: wrap; height: auto; min-height: 60px; padding-block: 10px; }
+.topbar .search { flex: 0 1 460px; min-width: 140px; }
+.search input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font-size: inherit; }
+.search:focus-within { border-color: var(--brand); }
+.nav { flex-wrap: wrap; gap: 16px; }
+.nav-link { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; text-align: inherit; }
+.nav .nav-link { white-space: nowrap; }
+.account { position: relative; z-index: 1; }
+.account summary { cursor: pointer; list-style: none; }
+.account-menu { position: absolute; inset: 40px 0 auto auto; min-width: 170px; padding: 12px; }
+.account-menu .btn { margin-top: 8px; }
+.wrap.live-wrap { display: block; height: auto; }
+.page-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.page-head h1 { margin-bottom: 18px; }
+.sandbox-note { margin-top: 24px; }
+.aside nav { display: grid; }
+.lab2-staff .shell { height: auto; min-height: 100vh; }
+.lab2-staff .aside .nav-link { padding: 9px 12px; border-radius: 7px; }
+.lab2-staff .aside .nav-link.active { background: #463028; color: white; font-weight: 600; }
+.lab2-staff .adminmain { min-width: 0; }
+.lab2-staff .filters { align-items: end; }
+.lab2-staff #workspace { padding: 18px 24px; }
+.split { display: flex; gap: 24px; align-items: flex-start; }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.grid > .panel { margin: 0; }
+.grid .cover { display: block; width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-block: 10px; }
+.grid .price { text-align: left; font-weight: 600; color: var(--brand); }
+.field { min-width: 0; }
+.field .input, .field .sel { width: 100%; }
+textarea.input { min-height: 92px; padding: 8px 12px; resize: vertical; }
+input[type=file].input { padding: 9px 12px; }
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-bottom: 14px; }
+.filters .field { margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.empty, #status:not(:empty) { display: block; color: var(--sub); border: 1px dashed var(--line); border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+.error, #status.error { color: var(--danger); }
+.table-scroll, .audit-table { overflow-x: auto; }
+.audit-table { margin-block: 14px; }
+.audit-table td:last-child { white-space: normal; }
+.thumbnail { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; }
+.thumb img, .pimg img, .big img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.big img { object-fit: contain; }
+.item-summary { display: flex; gap: 12px; align-items: flex-start; }
+.meta, .detail-text { overflow-wrap: anywhere; white-space: pre-wrap; }
+.panel > .meta, .tip { color: var(--sub); }
+.order-foot, .res-foot { flex-wrap: wrap; }
+.order .review-summary { padding: 12px 18px; border-top: 1px solid var(--line); }
+.tabs { flex-wrap: wrap; gap: 18px; }
+.tabs button.tab { background: transparent; border: 0; font: inherit; cursor: pointer; }
+.lab2-inventory .ops { flex-wrap: wrap; }
+.lab2-inventory .pcell { min-width: 230px; }
+.lab2-inventory .ptitle { max-width: 370px; white-space: normal; overflow-wrap: anywhere; }
+.lab2-inventory .state-tabs button { background: transparent; border: 0; cursor: pointer; }
+.lab2-inventory .state-tabs button .on { background: var(--brand-weak); }
+.lab2-chat .chat { height: min(800px, max(460px, 78vh)); }
+.lab2-chat .msgs { overflow-y: auto; }
+.lab2-chat .bubble p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lab2-chat .inputbar { display: block; }
+.lab2-chat .chat-compose { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.lab2-chat .chat-compose .field { margin: 0; }
+.lab2-chat .chat-compose .field:first-child { flex: 1 1 220px; }
+.lab2-chat .chat-compose .field:nth-child(2) { width: min(170px, 100%); }
+.lab2-chat .chat-compose .error:not(:empty) { flex-basis: 100%; }
+.chat-hide { margin-top: 4px; color: var(--sub); font-size: 11px; }
+.chat-image { display: block; max-width: min(100%, 260px); max-height: 240px; border-radius: 6px; }
+.lab2-stats .category-bar { margin: 14px 0; }
+.lab2-stats .category-caption { display: flex; justify-content: space-between; }
+.lab2-stats .recent-sales { margin-block: 16px; }
+.lab2-stats .recent-sales > p { padding: 12px 18px; }
+.lab2-auth.auth-dialog { width: min(100%, 1440px); max-width: 100%; padding: 0; border: 0; }
+.lab2-auth .auth { height: auto; min-height: min(780px, 88vh); }
+.lab2-auth .brandside { width: 43%; }
+.lab2-auth .formside { padding: 24px; }
+.lab2-auth .box { max-width: 100%; }
+.lab2-auth .tabsline button { padding-bottom: 10px; border: 0; background: none; color: var(--sub); font-size: 15px; cursor: pointer; }
+.lab2-auth .tabsline button.on { border-bottom: 2px solid var(--brand); font-weight: 700; color: var(--ink); }
+dialog { margin: auto; width: min(540px, calc(100% - 32px)); max-height: 90vh; padding: 18px; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
+dialog::backdrop { background: #24242480; }
+dialog h2 { font-size: 18px; margin-bottom: 6px; }
+#dialog-intro { margin-bottom: 12px; }
+@media (max-width: 960px) {
+  .topbar { gap: 12px; padding-inline: 18px; }
+  .topbar .search { flex: 1 1 200px; }
+  .wrap.live-wrap { padding-inline: 18px; }
+  .side { width: 240px; flex-basis: 240px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .split, .lab2-product .detail, .lab2-staff .shell { display: block; }
+  .side, .lab2-product .gallery { width: auto; }
+  .side { margin-top: 16px; }
+  .lab2-staff .aside nav { display: flex; flex-wrap: wrap; }
+  .lab2-auth .brandside { display: none; }
+  .lab2-product .big { height: min(350px, 70vw); }
+  .order-body, .res-body { flex-wrap: wrap; }
+  .order-body .price { margin-left: auto; }
+  .lab2-stats .two { grid-template-columns: minmax(0, 1fr); }
+}

@@ -62,6 +62,7 @@ def test_fifty_concurrent_orders_only_one_wins(seller, category):
 
     kinds = Counter(kind for kind, _ in outcomes)
     assert kinds == Counter({"ok": 1, "conflict": 49}), outcomes
+    assert {value for kind, value in outcomes if kind == "conflict"} == {"该商品已被锁定"}
     assert Order.objects.filter(product_id=product_pk).count() == 1
     assert Order.objects.filter(product_id=product_pk, status=WAITING_PAY).count() == 1
     product.refresh_from_db()

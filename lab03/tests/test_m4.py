@@ -18,10 +18,11 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from audit.models import RESULT_DENIED, RESULT_ALLOWED, OperationLog
-from catalog.models import LOCKED, PRESALE, PUBLISHED, SOLD, TRADING, Product
-from catalog.services import VersionConflict, revise_content
+from catalog.models import LOCKED, PRESALE, PUBLISHED, SOLD, TRADING
+from catalog.services import revise_content
 from catalog.state import StateConflict
-from common.timebox import next_day_window_end
+from common.errors import InvalidInput
+from common.timebox import FINAL_WINDOW, next_day_window_end
 from reservations.services import (
     confirm_arrival,
     pay_deposit,
@@ -31,7 +32,6 @@ from reservations.services import (
 )
 from tests.conftest import make_presale, make_product
 from trade.fees import fee_breakdown
-from common.errors import InvalidInput
 from trade.models import (
     CANCELED,
     KIND_DEPOSIT,
@@ -297,7 +297,7 @@ def test_refund_of_presale_order_restores_presale(seller, buyer, category):
     pay_deposit(reservation, actor=buyer, txn_no="D-100", now=base + timedelta(minutes=1))
     seller_confirm(reservation, actor=seller, now=base + timedelta(minutes=2))
     confirm_arrival(reservation, actor=seller, now=base + timedelta(minutes=3))
-    pay_final(reservation, actor=buyer, txn_no="F-100", now=base + timedelta(minutes=4))
+    pay_final(reservation, actor=buyer, txn_no="F-100", now=reservation.final_due_at - FINAL_WINDOW)
     order = reservation.order
     assert order.status == WAITING_SHIP
     paid = {item.kind for item in Payment.objects.filter(reservation=reservation, result=RESULT_OK)}
@@ -353,10 +353,11 @@ def test_presale_auto_confirm_uses_arrival_window(seller, buyer, category):
     pay_deposit(reservation, actor=buyer, txn_no="D-101", now=base + timedelta(minutes=1))
     seller_confirm(reservation, actor=seller, now=base + timedelta(minutes=2))
     confirm_arrival(reservation, actor=seller, now=arrived)
-    pay_final(reservation, actor=buyer, txn_no="F-101", now=arrived + timedelta(minutes=5))
+    opens = reservation.final_due_at - FINAL_WINDOW
+    pay_final(reservation, actor=buyer, txn_no="F-101", now=opens)
     order = reservation.order
     assert order.auto_confirm_at == next_day_window_end(reservation.arrived_at)
-    ship(order, actor=seller, tracking_no="SF123460", now=arrived + timedelta(minutes=10))
+    ship(order, actor=seller, tracking_no="SF123460", now=opens + timedelta(minutes=10))
     assert sweep(now=order.auto_confirm_at + timedelta(minutes=1)) >= 1
     order.refresh_from_db()
     product.refresh_from_db()

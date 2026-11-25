@@ -9,8 +9,10 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from common.api import json_body, json_errors, optional_int
+from common.timebox import read_period
 
 from . import services
+from .imagery import thumbnail
 from .models import Category, Product
 from .search import search, visible_to
 
@@ -45,6 +47,11 @@ def _row(product: Product) -> dict:
         "deposit": str(product.deposit),
         "final_amount": str(product.final_amount),
         "presale_valid_days": product.presale_valid_days,
+        "seller_id": product.seller_id,
+        "category_id": product.category_id,
+        "brand": product.brand,
+        "description": product.description,
+        "thumbnail": getattr(product, "thumbnail", None),
     }
 
 
@@ -84,9 +91,11 @@ def products(request: HttpRequest) -> HttpResponse:
         price_min=request.GET.get("price_min"),
         price_max=request.GET.get("price_max"),
         sort=request.GET.get("sort", "newest"),
+        status=request.GET.get("status"),
+        published_period=read_period(request.GET),
         page=optional_int(request.GET.get("page"), "page") or 1,
     )
-    return JsonResponse({"items": [_row(item) for item in rows]})
+    return JsonResponse({"items": [_row(item) for item in rows.annotate(thumbnail=thumbnail())]})
 
 
 @json_errors
@@ -95,7 +104,7 @@ def product_detail(request: HttpRequest, pk: int) -> HttpResponse:
     """商品详情：看不见的商品一律当不存在，避免泄露草稿与违规内容。"""
     if not visible_to(request.user).filter(pk=pk).exists():
         return JsonResponse({"error": "商品不存在"}, status=404)
-    product = Product.objects.get(pk=pk)
+    product = Product.objects.annotate(thumbnail=thumbnail()).get(pk=pk)
     return JsonResponse(_row(product))
 
 

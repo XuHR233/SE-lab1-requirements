@@ -20,7 +20,9 @@ PAGE_SIZE = 50
 MAX_ROWS = 1000
 TIMELINE = frozenset({
     "order.create", "order.pay", "order.ship", "order.receive", "order.cancel", "order.refund",
-    "order.dispute", "order.settle", "order.refund_request", "dispute.raise",
+    "order.dispute", "order.settle", "order.refund_request", "dispute.raise", "dispute.handle",
+    "order.resume", "order.terminate", "review.submit", "review.delete", "review.appeal",
+    "review.resolve", "review.auto",
 })
 FILTERS = ("order_id", "product_id", "actor_id", "action", "result", "start", "end")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
@@ -96,6 +97,9 @@ def order_action(request: HttpRequest, pk: int, action: str) -> HttpResponse:
         return order
     data = json_body(request)
     actor = request.user
+
+    if action == "pay" and not settings.SIMULATED_PAYMENTS:
+        return JsonResponse({"error": "未启用模拟支付，真实支付渠道未配置"}, status=503)
 
     if action == "pay":
         services.pay(

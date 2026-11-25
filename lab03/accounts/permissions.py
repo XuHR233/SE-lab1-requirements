@@ -30,6 +30,15 @@ ALLOWED_ROLES: dict[str, frozenset[str]] = {
     "account.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
     "chat.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
     "chat.send": frozenset({ROLE_MEMBER}),
+    # M5 沟通与纠纷（REQ-018/019）：读工单给纠纷双方与客服/管理员，
+    # 发起介入只给 member，接单与裁定只给客服/管理员。
+    "dispute.read": frozenset({ROLE_SUPPORT, ROLE_ADMIN}),
+    "dispute.raise": frozenset({ROLE_MEMBER}),
+    "dispute.handle": frozenset({ROLE_SUPPORT, ROLE_ADMIN}),
+    "dispute.escalate": frozenset({ROLE_SUPPORT}),
+    "dispute.takeover": frozenset({ROLE_ADMIN}),
+    # 客服工作台是纯后台功能，不进 member 的可用动作（读工单仍是 dispute.read）。
+    "dispute.workbench": frozenset({ROLE_SUPPORT, ROLE_ADMIN}),
     "log.view": frozenset({ROLE_SUPPORT, ROLE_ADMIN}),
     "profile.view": frozenset({ROLE_MEMBER, ROLE_SUPPORT, ROLE_ADMIN}),
 }
@@ -65,6 +74,16 @@ def role_of(user: Any) -> str:
     if user is None or not getattr(user, "is_authenticated", False):
         return ROLE_GUEST
     return user.role
+
+
+def allowed_by_role(user: Any, action: str) -> bool:
+    """只判角色能不能碰这个动作，不看数据归属（REQ-002 第一步）。
+
+    给「先做角色预检、再在用例层判当事人」的模块用：能进这个动作不表示能碰某条数据，
+    当事人校验必须由调用方自己补上。
+    """
+    role = role_of(user)
+    return action in ALLOWED_ROLES and role in ALLOWED_ROLES[action]
 
 
 def can(user: Any, action: str, *, owner_id: int | None = None) -> bool:

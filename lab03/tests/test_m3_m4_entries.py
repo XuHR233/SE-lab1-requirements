@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
@@ -18,7 +20,7 @@ from django.test import Client
 
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, OperationLog
 from catalog.models import PUBLISHED, SOLD, TRADING
-from reservations.models import AWAITING_SELLER, COMPLETED
+from reservations.models import AWAITING_SELLER, COMPLETED, Reservation
 from tests.helpers import build_order, build_reservation, plain_product, presale_product
 from trade.models import WAITING_PAY as ORDER_WAITING_PAY
 from trade.models import WAITING_RECEIPT as ORDER_WAITING_RECEIPT
@@ -229,9 +231,11 @@ def test_presale_chain_through_views(seller, buyer, admin, category):
     assert status == 200 and body["status"] == AWAITING_SELLER
     api(as_user(seller), "POST", f"/api/reservations/{rid}/confirm/", {})
     api(as_user(seller), "POST", f"/api/reservations/{rid}/arrive/", {})
-    status, body = api(
-        as_user(buyer), "POST", f"/api/reservations/{rid}/pay-final/", {"txn_no": "F-1"}
-    )
+    opens = Reservation.objects.get(pk=rid).final_due_at - timedelta(days=1)
+    with patch("reservations.services.business_now", return_value=opens):
+        status, body = api(
+            as_user(buyer), "POST", f"/api/reservations/{rid}/pay-final/", {"txn_no": "F-1"}
+        )
     assert status == 200 and body["status"] == COMPLETED
     assert body["order_id"]
 
@@ -335,7 +339,7 @@ def test_locked_product_is_hidden_from_list(seller, buyer, other, category):
 def test_reserved_presale_is_hidden_from_others(seller, buyer, other, category):
     """有效预约期间已预售商品对他人不可见，当事人与客服可见（REQ-006）。"""
     product = presale_product(seller, category, title=TARGET_TITLE)
-    status, body = api(
+    status, _ = api(
         as_user(buyer), "POST", f"/api/products/{product.pk}/reservations/", {"request_key": "r9"}
     )
     assert status == 201
@@ -367,11 +371,10 @@ def test_detail_of_other_users_reservation_is_404(buyer, other, seller, category
 
 def test_overdue_deposit_payment_returns_409(seller, buyer, category):
     """定金窗口已过期：409（时间冲突与权限拒绝要能区分）。"""
-    from datetime import timedelta  # pylint: disable=import-outside-toplevel
 
     from django.utils import timezone  # pylint: disable=import-outside-toplevel
 
-    product = presale_product(seller, category)
+    presale_product(seller, category)
     reservation = build_reservation(
         seller, category, buyer, to="待付定金", now=timezone.now() - timedelta(minutes=20)
     )

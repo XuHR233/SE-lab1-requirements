@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from demo.clock import business_now
 from reservations import services as reservations
 from reviews import services as reviews
 from trade import services as trade
@@ -30,17 +31,17 @@ class Command(BaseCommand):
         moment = self._now(options.get("now", ""))
         closed_reservations = reservations.sweep(now=moment)
         closed_orders = trade.sweep(now=moment)
+        auto_reviews, reminders = reviews.sweep(now=moment)
+        self.stdout.write(f"自动评价 {auto_reviews} 条，评价申诉提醒 {reminders} 条")
         self.stdout.write(
             f"预约关闭 {closed_reservations} 条，订单推进 {closed_orders} 条（{moment.isoformat()}）"
         )
-        auto_reviews, reminders = reviews.sweep(now=moment)
-        self.stdout.write(f"自动评价 {auto_reviews} 条，评价申诉提醒 {reminders} 条")
 
     @staticmethod
     def _now(text: str):
         """把 --now 解析成带时区的时间；解析不了直接拒绝执行。"""
         if not text:
-            return timezone.now()
+            return business_now()
         moment = parse_datetime(text)
         if moment is None:
             raise CommandError("--now 必须是 ISO 8601 时间")
