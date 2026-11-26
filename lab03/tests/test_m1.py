@@ -10,6 +10,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
+from accounts import views
 from accounts.masking import mask_phone, mask_text
 from accounts.permissions import can
 from audit.models import RESULT_DENIED, OperationLog
@@ -117,6 +118,30 @@ def test_login_failure_does_not_leak_which_field_wrong(member) -> None:
     wrong_password = Client().post(LOGIN_URL, {"phone": member.phone, "password": "bad"}).json()
     no_such_user = Client().post(LOGIN_URL, {"phone": "13911112222", "password": "bad"}).json()
     assert wrong_password == no_such_user
+
+
+@pytest.mark.django_db
+def test_login_ignores_phone_spaces_but_preserves_password(member) -> None:
+    """手机号可去除空白，密码仍必须精确匹配，登录响应不缓存。"""
+    member.set_password(" Pw12345678 ")
+    member.save(update_fields=["password"])
+    client = Client(REMOTE_ADDR="192.0.2.10")
+    phone = f" {member.phone[:3]}\u3000{member.phone[3:]} "
+    assert client.post(LOGIN_URL, {"phone": phone, "password": "Pw12345678"}).status_code == 400
+    response = client.post(LOGIN_URL, {"phone": phone, "password": " Pw12345678 "})
+    assert response.status_code == 200
+    assert "no-store" in response["Cache-Control"]
+
+
+@pytest.mark.django_db
+def test_login_throttles_repeated_attempts(member, monkeypatch) -> None:
+    """同一个来源的同一手机号重复尝试达到上限后返回 429。"""
+    monkeypatch.setattr(views, "LOGIN_PER_ACCOUNT", 2)
+    client = Client(REMOTE_ADDR="192.0.2.11")
+    for _ in range(2):
+        assert client.post(LOGIN_URL, {"phone": member.phone, "password": "bad"}).status_code == 400
+    phone = f"{member.phone[:3]} {member.phone[3:]}"
+    assert client.post(LOGIN_URL, {"phone": phone, "password": "Pw12345678"}).status_code == 429
 
 
 # ---------------- R-102 角色权限矩阵 ----------------

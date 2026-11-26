@@ -21,17 +21,20 @@ function requestDispute(chat, reload) {
     () => reload("工单已提交。"), "提交工单"), "primary");
 }
 
-function composer(chat, reload, ticket) {
+function composer(chat, refreshThread, ticket) {
   const form = node("form", null, "chat-compose");
   const text = field("text", "消息", {placeholder: "输入消息，请勿填写手机号等敏感信息", maxlength: 1000});
   const attach = field("file", "图片（选填）", {type: "file", accept: imageAccept});
   const send = node("button", "发送", "btn primary"), notice = node("p", "", "error");
+  const textInput = text.querySelector("input"), fileInput = attach.querySelector("input");
   notice.setAttribute("role", "alert");
   form.append(text, attach, send, notice);
   form.onsubmit = async event => {
     event.preventDefault();
-    send.disabled = true;
+    if (send.disabled) return;
     const data = new FormData(form);
+    const restoreFocus = form.contains(document.activeElement);
+    send.disabled = fileInput.disabled = textInput.readOnly = true;
     try {
       notice.textContent = "";
       const body = data.get("text").trim(), image = data.get("file");
@@ -43,9 +46,18 @@ function composer(chat, reload, ticket) {
       if (image.size) await api(`/demo/chats/${chat.id}/image/`, data);
       else if (body) await api(`/api/chats/${chat.id}/messages/`, message);
       else throw new Error("请输入文字或选一张图片。");
-      await reload("消息已发送。");
+      form.reset();
+      try {
+        await refreshThread();
+      } catch {
+        notice.textContent = "消息已发送，但聊天记录未能更新。请刷新查看，不必重发。";
+      }
     } catch (error) { notice.textContent = error.message; }
-    finally { send.disabled = false; }
+    finally {
+      send.disabled = fileInput.disabled = textInput.readOnly = false;
+      if (restoreFocus && form.isConnected && (document.activeElement === document.body
+        || form.contains(document.activeElement))) textInput.focus({preventScroll: true});
+    }
   };
   return form;
 }
@@ -95,7 +107,8 @@ export async function chats(desk, focus, open, reload) {
   if (member && focus?.orderId) scope.set("order_id", focus.orderId);
   if (staffTicket) scope.set("dispute_id", staffTicket.id);
   const query = scope.toString();
-  const data = await api(`/api/chats/${current}/${query ? `?${query}` : ""}`), chat = data.conversation;
+  const detailUrl = `/api/chats/${current}/${query ? `?${query}` : ""}`;
+  const data = await api(detailUrl), chat = data.conversation;
   const ticket = data.dispute !== undefined ? data.dispute : (staffTicket || desk.disputes.find(row =>
     row.conversation_id === chat.id && row.order_id === chat.order_id));
   if ((focus?.orderId && chat.order_id !== focus.orderId)
@@ -105,33 +118,63 @@ export async function chats(desk, focus, open, reload) {
   const {root: channel, slots} = component("chat");
   const party = config.user === chat.seller_id ? `买家账号 #${chat.buyer_id}` : `卖家账号 #${chat.seller_id}`;
   slots.title.textContent = chat.title;
-  slots.note.textContent = `会话 #${chat.id} ｜ ${data.items.length} 条可见消息 ｜ 建立于 ${date(chat.created_at)}`;
   slots.price.textContent = yuan(chat.price);
   slots.order.textContent = orderLabel(chat);
   if (member && chat.thumbnail) slots.image.append(picture(chat.thumbnail));
   const thread = slots.thread;
-  thread.append(...data.items.map(item => message(item, chat)));
-  if (!data.items.length) thread.append(meta("暂无消息。"));
-  const canRaise = member && !ticket && ["待发货", "待收货", "纠纷中", "已完成"].includes(chat.order_status);
-  for (const signal of data.signals.filter(entry => !entry.ignored)) {
-    const strip = node("div", null, "alert");
-    strip.append(node("span", `${signal.reason}。系统仅提示，不判定责任或自动退款。`), node("div", null, "grow"));
-    if (canRaise) strip.append(requestDispute(chat, reload));
-    if (member) strip.append(button("忽略提示", async () => {
-      await api(`/api/chats/${current}/ignore-signal/`, {kind: signal.kind});
-      await reload("已忽略此提示。");
-    }));
-    thread.append(strip);
+  const bar = actions();
+  let renderedMessages = new Map();
+  function renderThread(snapshot, activeTicket) {
+    const context = snapshot.conversation;
+    slots.note.textContent = `会话 #${context.id} ｜ ${snapshot.items.length} 条可见消息 ｜ 建立于 ${date(context.created_at)}`;
+    const rows = snapshot.items.map(item => [item.id, renderedMessages.get(item.id) || message(item, context)]);
+    renderedMessages = new Map(rows);
+    const content = rows.length ? rows.map(([, row]) => row) : [meta("暂无消息。")];
+    const canRaise = member && !activeTicket && ["待发货", "待收货", "纠纷中", "已完成"].includes(context.order_status);
+    const signals = snapshot.signals.filter(entry => !entry.ignored);
+    for (const signal of signals) {
+      const strip = node("div", null, "alert");
+      strip.append(node("span", `${signal.reason}。系统仅提示，不判定责任或自动退款。`), node("div", null, "grow"));
+      if (canRaise) strip.append(requestDispute(context, reload));
+      if (member) strip.append(button("忽略提示", async () => {
+        await api(`/api/chats/${current}/ignore-signal/`, {kind: signal.kind});
+        await reload("已忽略此提示。");
+      }));
+      content.push(strip);
+    }
+    if (activeTicket) {
+      const system = node("p", null, "sys");
+      system.append(node("span", `客服工单 #${activeTicket.id} · ${ticketState(activeTicket)}${activeTicket.verdict ? ` · ${activeTicket.verdict}` : ""}`));
+      content.push(system);
+    }
+    const retained = new Set(content);
+    for (const child of [...thread.children]) {
+      if (!retained.has(child)) child.remove();
+    }
+    let cursor = thread.firstElementChild;
+    for (const child of content) {
+      if (child === cursor) cursor = cursor.nextElementSibling;
+      else thread.insertBefore(child, cursor);
+    }
+    bar.replaceChildren(...(canRaise && !signals.length ? [requestDispute(context, reload)] : []));
   }
-  if (ticket) {
-    const system = node("p", null, "sys");
-    system.append(node("span", `客服工单 #${ticket.id} · ${ticketState(ticket)}${ticket.verdict ? ` · ${ticket.verdict}` : ""}`));
-    thread.append(system);
+  async function refreshThread() {
+    if (!thread.isConnected) return;
+    const snapshot = await api(detailUrl);
+    if (!thread.isConnected) return;
+    if (snapshot.conversation.order_id !== chat.order_id || snapshot.dispute?.id !== ticket?.id
+      || (!member && !ownsDispute(snapshot.dispute))) {
+      throw new Error("会话上下文已变化，请刷新后查看。");
+    }
+    const previousTop = thread.scrollTop;
+    const nearEnd = thread.scrollHeight - thread.clientHeight - previousTop <= 32;
+    renderThread(snapshot, snapshot.dispute);
+    thread.scrollTop = nearEnd ? thread.scrollHeight : previousTop;
   }
-  if (member) slots.composer.append(composer(chat, reload));
-  else if (ownsDispute(ticket)) slots.composer.append(composer(chat, reload, ticket));
+  renderThread(data, ticket);
+  if (member) slots.composer.append(composer(chat, refreshThread));
+  else if (ownsDispute(ticket)) slots.composer.append(composer(chat, refreshThread, ticket));
   else slots.composer.append(meta("只有当前处理人可以参与交流。"));
-  const bar = actions(canRaise && !data.signals.some(entry => !entry.ignored) && requestDispute(chat, reload));
   main.append(node("h3", member ? `与${party}的会话` : "工单关联会话"), channel, bar);
   aside.append(card("会话规则", null, meta("聊天记录仅双方和有权处理该工单的工作人员可见。页面不提供隐藏或删除消息。")),
     ticketPanel(ticket, chat, open, reload), card("处理权限", null, pair("客服退款", "须记录裁定及说明"), pair("封号 / 下架", "仅管理员"),

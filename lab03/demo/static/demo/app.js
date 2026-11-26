@@ -1,7 +1,7 @@
 import {$, actions, admin, api, button, card, config, date, field, member, meta, modal, node, roles, staff, status} from "./ui.js";
 import {inventory, market, productDetail} from "./products.js";
 import {appeals, disputes, orders, reservations} from "./trade.js";
-import {chats} from "./chats.js";
+import {chats} from "./chats.js?v=chat-scroll-2";
 import {logs} from "./logs.js";
 import {stats} from "./stats.js";
 
@@ -26,14 +26,22 @@ function auth(register) {
   $("auth-login-tab").classList.toggle("on", !register);
   $("auth-register-tab").classList.toggle("on", register);
   $("auth-fields").replaceChildren(...fields);
+  const phone = form.elements.phone;
+  phone.addEventListener("input", () => {
+    const value = phone.value.replace(/\s+/g, "");
+    if (phone.value !== value) phone.value = value;
+  });
   $("auth-error").textContent = "";
   submit.textContent = label;
   form.onsubmit = async event => {
     event.preventDefault();
+    if (submit.disabled) return;
     submit.disabled = true;
     try {
       $("auth-error").textContent = "";
-      await api(`/accounts/${register ? "register" : "login"}`, new URLSearchParams(new FormData(form)));
+      const data = new URLSearchParams(new FormData(form));
+      data.set("phone", phone.value.replace(/\s+/g, ""));
+      await api(`/accounts/${register ? "register" : "login"}`, data);
       location.assign("/");
     } catch (error) { $("auth-error").textContent = error.message; }
     finally { submit.disabled = false; }

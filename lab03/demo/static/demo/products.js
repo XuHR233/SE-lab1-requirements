@@ -43,13 +43,15 @@ function summary(item, desk) {
   return identity;
 }
 
-function uploadButton(item, reload) {
-  return button("上传图片", () => {
+function uploadButton(item, reload, live) {
+  const label = live ? "上传图片并重审" : "上传图片";
+  const formatHint = "支持 JPG、PNG、WebP、GIF，单张最多 5 MB。";
+  return button(label, () => {
     const input = field("file", "选择商品图片", {type: "file", required: true, accept: imageAccept});
-    modal("上传商品图片", "支持 JPG、PNG、WebP、GIF，单张最多 5 MB。", [input], data => {
+    modal(label, live ? `${formatHint} 上传后商品将转为待审核，审核通过后重新展示。` : formatHint, [input], data => {
       data.set("version", item.version);
       return api(`/demo/products/${item.id}/image/`, data);
-    }, () => reload("图片已上传，可在商品和送审预览中查看。"), "上传");
+    }, () => reload(live ? "图片已上传，商品已重新送审。" : "图片已上传，可在商品和送审预览中查看。"), live ? label : "上传");
   });
 }
 
@@ -81,7 +83,7 @@ export function inventory(desk, reload) {
       const live = publicStatus.includes(item.status);
       if (["草稿", "已驳回"].includes(item.status) || live) {
         list.push(button(live ? "修改并重审" : "编辑草稿", () => productModal(desk, item, reload)),
-          uploadButton(item, reload));
+          uploadButton(item, reload, live));
       }
       if (item.status === "草稿") list.push(item.image_count > 0 ? change("提交审核", "submit") :
         button("提交审核", () => modal("缺少商品图片", "上传至少一张图片后才能送审。", [summary(item, desk)], () => {}, () => {}, "知道了")),
@@ -194,18 +196,18 @@ export function productDetail(desk, item, open) {
 }
 
 export function market(desk, rows, filters, apply, open) {
-  const wrapper = node("div"), form = node("form", null, "filters");
+  const wrapper = node("div"), form = node("form", null, "filters market-filters");
   const value = name => filters.get(name) || "";
   form.append(
     field("keyword", "搜索商品", {value: value("keyword"), placeholder: "标题 / 品牌 / 描述"}),
     field("category", "分类", {values: [["", "全部"], ...categoryOptions(desk)], value: value("category")}),
     field("tag", "标签", {values: [["", "全部"], ...desk.tags.map(name => [name, name])], value: value("tag")}),
     field("status", "类型", {values: [["", "全部"], ...publicStatus.map(name => [name, name])], value: value("status")}),
+    field("sort", "排序", {values: [["newest", "最新"], ["price_asc", "价格升序"], ["price_desc", "价格降序"], ["oldest", "最早"]], value: value("sort") || "newest"}),
     field("price_min", "最低价", {type: "number", min: 0, step: ".01", value: value("price_min")}),
     field("price_max", "最高价", {type: "number", min: 0, step: ".01", value: value("price_max")}),
     field("start", "发布起点（北京时间）", {type: "datetime-local", value: value("start")}),
     field("end", "发布终点（不含）", {type: "datetime-local", value: value("end")}),
-    field("sort", "排序", {values: [["newest", "最新"], ["price_asc", "价格升序"], ["price_desc", "价格降序"], ["oldest", "最早"]], value: value("sort") || "newest"}),
   );
   const submit = node("button", "搜索", "btn primary");
   form.append(submit);

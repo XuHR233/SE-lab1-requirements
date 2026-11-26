@@ -35,6 +35,21 @@ textarea.input { min-height: 92px; padding: 8px 12px; resize: vertical; }
 input[type=file].input { padding: 9px 12px; }
 .filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-bottom: 14px; }
 .filters .field { margin: 0; }
+.filters.market-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, .8fr) repeat(2, minmax(0, 1fr)) minmax(0, .65fr);
+  gap: 12px;
+}
+.market-filters .field > :is(.input, .sel) { height: 40px; }
+.market-filters > .btn { height: 40px; justify-content: center; }
+@media (max-width: 1000px) {
+  .filters.market-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .market-filters > .field:first-child { grid-column: 1 / -1; }
+  .market-filters > .btn { grid-column: 1 / -1; }
+}
+@media (max-width: 460px) {
+  .filters.market-filters { grid-template-columns: minmax(0, 1fr); }
+}
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .empty, #status:not(:empty) { display: block; color: var(--sub); border: 1px dashed var(--line); border-radius: 8px; padding: 12px; margin-bottom: 14px; }
 .error, #status.error { color: var(--danger); }
@@ -56,10 +71,10 @@ input[type=file].input { padding: 9px 12px; }
 .lab2-inventory .ptitle { max-width: 370px; white-space: normal; overflow-wrap: anywhere; }
 .lab2-inventory .state-tabs button { background: transparent; border: 0; cursor: pointer; }
 .lab2-inventory .state-tabs button .on { background: var(--brand-weak); }
-.lab2-chat .chat { height: min(800px, max(460px, 78vh)); }
-.lab2-chat .msgs { overflow-y: auto; }
+.lab2-chat .chat { display: flex; flex-direction: column; height: min(800px, 78dvh); overflow: hidden; }
+.lab2-chat .msgs { flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-anchor: none; }
 .lab2-chat .bubble p { white-space: pre-wrap; overflow-wrap: anywhere; }
-.lab2-chat .inputbar { display: block; }
+.lab2-chat .inputbar { display: block; flex: 0 0 auto; }
 .lab2-chat .chat-compose { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
 .lab2-chat .chat-compose .field { margin: 0; }
 .lab2-chat .chat-compose .field:first-child { flex: 1 1 220px; }
