@@ -50,14 +50,20 @@ function composer(chat, reload, ticket) {
   return form;
 }
 
+function orderLabel(chat) {
+  if (!chat.order_id) return "商品咨询";
+  return `订单 #${chat.order_id} · ${chat.order_status}${chat.order_is_historical ? " · 历史订单" : ""}`;
+}
+
 function ticketPanel(ticket, chat, open, reload) {
-  if (!ticket) return card("纠纷工单", null, meta("当前会话暂无关联工单。"));
+  if (!ticket) return card("纠纷工单", null, pair("当前查看", orderLabel(chat)),
+    meta(chat.order_id ? "此订单暂无工单。" : "暂无工单。"));
   return card(`纠纷工单 #${ticket.id}`, null,
     !member && picture(chat.thumbnail, chat.title, "chat-image", true),
     !member && actions(claimTicket(ticket, () => reload("已接单。"))),
     ...(!member ? dispositionPanel(ticket, reload) : []),
     pair("工单状态", ticketState(ticket)),
-    pair("关联订单", `#${ticket.order_id}`), pair("发起时间", date(ticket.created_at)),
+    pair("关联订单", orderLabel(chat)), pair("发起时间", date(ticket.created_at)),
     pair("发起方式", ticket.raised_source),
     pair("订单与资金", ticket.order__status === "纠纷中" ? "暂停自动履约及结算" : ticket.order__status),
     ticket.handler_id && pair(ticket.closed_at ? "裁定人" : "处理人", `工作人员 #${ticket.handler_id}`),
@@ -72,7 +78,7 @@ export async function chats(desk, focus, open, reload) {
   const main = node("div", null, "main"), aside = node("aside", null, "side");
   const {items} = member ? await api("/api/chats/") : {items: []};
   const staffTicket = !member && focus ? await api(`/api/chats/disputes/${focus}/`) : null;
-  const current = member ? focus || items[0]?.id : staffTicket?.conversation_id;
+  const current = member ? (focus?.conversationId ?? focus ?? items[0]?.id) : staffTicket?.conversation_id;
   root.append(main, aside);
   if (items.length) {
     const chooser = field("conversation", "我的会话", {
@@ -85,16 +91,23 @@ export async function chats(desk, focus, open, reload) {
     main.append(node("p", member ? "暂无会话。可以从商品广场联系卖家，或在订单中开启沟通。" : "请从有权查看的纠纷工单打开关联会话。", "empty"));
     return root;
   }
-  const data = await api(`/api/chats/${current}/`), chat = data.conversation;
-  const linked = desk.disputes.filter(row => row.conversation_id === chat.id);
-  const ticket = staffTicket || linked.find(row => row.status === "待处理") || linked[0];
+  const scope = new URLSearchParams();
+  if (member && focus?.orderId) scope.set("order_id", focus.orderId);
+  if (staffTicket) scope.set("dispute_id", staffTicket.id);
+  const query = scope.toString();
+  const data = await api(`/api/chats/${current}/${query ? `?${query}` : ""}`), chat = data.conversation;
+  const ticket = data.dispute !== undefined ? data.dispute : (staffTicket || desk.disputes.find(row =>
+    row.conversation_id === chat.id && row.order_id === chat.order_id));
+  if ((focus?.orderId && chat.order_id !== focus.orderId)
+    || (staffTicket && (ticket?.id !== staffTicket.id || chat.order_id !== staffTicket.order_id))) {
+    throw new Error("未能加载指定订单或工单，请刷新后重试。");
+  }
   const {root: channel, slots} = component("chat");
   const party = config.user === chat.seller_id ? `买家账号 #${chat.buyer_id}` : `卖家账号 #${chat.seller_id}`;
   slots.title.textContent = chat.title;
   slots.note.textContent = `会话 #${chat.id} ｜ ${data.items.length} 条可见消息 ｜ 建立于 ${date(chat.created_at)}`;
   slots.price.textContent = yuan(chat.price);
-  slots.order.textContent = ticket ? `订单 #${ticket.order_id} · ${ticket.order__status}`
-    : chat.order_id ? `订单 #${chat.order_id} · ${chat.order_status}` : "商品咨询";
+  slots.order.textContent = orderLabel(chat);
   if (member && chat.thumbnail) slots.image.append(picture(chat.thumbnail));
   const thread = slots.thread;
   thread.append(...data.items.map(item => message(item, chat)));

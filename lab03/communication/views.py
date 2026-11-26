@@ -35,9 +35,8 @@ def _dispute(pk: int) -> HttpResponse | Dispute:
     return dispute
 
 
-def _row(conversation: Conversation, actor) -> dict:
-    """会话的对外表示。"""
-    order = conversation.order
+def _row(conversation: Conversation, actor, order: Order | None) -> dict:
+    """会话的对外表示：订单编号、状态及快照来自同一单。"""
     frozen = for_document(order) if order else None
     if not order and actor.pk == conversation.buyer_id:
         frozen = latest_for_buyer(actor, conversation.product_id)
@@ -47,11 +46,12 @@ def _row(conversation: Conversation, actor) -> dict:
         "product_id": conversation.product_id,
         "buyer_id": conversation.buyer_id,
         "seller_id": conversation.seller_id,
-        "order_id": conversation.order_id,
+        "order_id": order.pk if order else None,
         "title": (frozen.get("title", "历史商品") if frozen is not None
                   else conversation.product.title),
         "price": str(order.amount if order else price or "—"),
         "order_status": order.status if order else None,
+        "order_is_historical": bool(order and order.status not in ORDER_ACTIVE_STATUSES),
         "thumbnail": (frozen.get("thumbnail") if frozen is not None
                       else getattr(conversation, "thumbnail", None)),
         "created_at": conversation.created_at.isoformat(),
@@ -112,14 +112,16 @@ def chats(request: HttpRequest) -> HttpResponse:
     """GET 我的会话；POST 就在售商品向卖家发起会话（重复发起复用原会话）。"""
     if request.method == "POST":
         data = json_body(request)
+        order_id = optional_int(data.get("order_id"), "order_id")
         conversation = services.open_conversation(
             request.user,
             optional_int(data.get("product_id"), "product_id"),
-            order_id=optional_int(data.get("order_id"), "order_id"),
+            order_id=order_id,
         )
-        return JsonResponse(_row(conversation, request.user), status=201)
-    visible = services.list_conversations(request.user).select_related("product", "order")
-    rows = [_row(item, request.user) for item in visible]
+        order = services.chat_order(conversation, order_id=order_id)
+        return JsonResponse(_row(conversation, request.user, order), status=201)
+    visible = services.list_conversations(request.user).select_related("product")
+    rows = [_row(item, request.user, order) for item, order in services.list_chat_orders(visible)]
     return JsonResponse({"items": rows})
 
 
@@ -130,7 +132,11 @@ def chat_detail(request: HttpRequest, pk: int) -> HttpResponse:
     conversation = _conversation(pk)
     if isinstance(conversation, HttpResponse):
         return conversation
-    services.read_conversation(conversation, request.user)
+    order, ticket = services.chat_context(
+        conversation, request.user,
+        order_id=optional_int(request.GET.get("order_id"), "order_id"),
+        dispute_id=optional_int(request.GET.get("dispute_id"), "dispute_id"),
+    )
     hidden = _hidden_ids(conversation, request.user)
     items = [
         _message_row(message)
@@ -140,7 +146,8 @@ def chat_detail(request: HttpRequest, pk: int) -> HttpResponse:
     return JsonResponse(
         {
             "id": conversation.pk,
-            "conversation": _row(conversation, request.user),
+            "conversation": _row(conversation, request.user, order),
+            "dispute": _dispute_row(ticket) if ticket else None,
             "items": items,
             "signals": [
                 {

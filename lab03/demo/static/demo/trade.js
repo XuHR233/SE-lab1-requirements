@@ -56,7 +56,7 @@ export function orders(desk, focus, open, reload) {
     if (buyer || seller) {
       list.push(button("订单沟通", async () => {
         const row = await api("/api/chats/", {product_id: item.product_id, order_id: item.id});
-        await open("chats", row.id);
+        await open("chats", {conversationId: row.id, orderId: item.id});
       }));
       if (item.can_raise) list.push(operation("请求客服介入", "订单会进入纠纷流程。", "/api/chats/disputes/",
         () => open("disputes", null, "工单已提交。"), {
@@ -181,7 +181,8 @@ export function disputes(desk, open) {
   return grid(desk.disputes, row => {
     const list = [member && button("关联订单", () => open("orders", row.order_id)),
       staff && button("订单处理记录", () => open("logs", row.order_id))];
-    if (row.conversation_id) list.push(button("查看关联会话", () => open("chats", staff ? row.id : row.conversation_id)));
+    if (row.conversation_id) list.push(button("查看关联会话", () => open("chats",
+      staff ? row.id : {conversationId: row.conversation_id, orderId: row.order_id})));
     list.push(claimTicket(row, () => open("chats", row.id, "已接单。")));
     return card(`工单 #${row.id} · 订单 #${row.order_id}`, ticketState(row), meta(row.reason),
       row.handler_id && meta(`处理人 #${row.handler_id}`), row.verdict && meta(`结果：${row.verdict} · ${row.note}`), actions(...list));

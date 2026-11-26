@@ -11,12 +11,14 @@ from typing import NoReturn
 
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
+from django.db.models import BooleanField, Case, OuterRef, Subquery, Value, When
 
 from audit.models import RESULT_ALLOWED, RESULT_DENIED, record
 from common.errors import Conflict, InvalidInput
 from demo.clock import business_now
 
 from .api import (
+    ORDER_ACTIVE_STATUSES,
     ORDER_DISPUTING,
     ORDER_WAITING_SHIP,
     PRODUCT_PUBLISHED,
@@ -189,6 +191,57 @@ def models_q(actor):
     from django.db.models import Q  # pylint: disable=import-outside-toplevel
 
     return Q(buyer_id=actor.pk) | Q(seller_id=actor.pk)
+
+
+def _chat_orders(product_id, buyer_id, seller_id):
+    return Order.objects.filter(product_id=product_id, buyer_id=buyer_id, seller_id=seller_id)
+
+
+def _order_priority(rows):
+    ongoing = Case(When(status__in=ORDER_ACTIVE_STATUSES, then=Value(True)),
+                   default=Value(False), output_field=BooleanField())
+    return rows.order_by(ongoing.desc(), "-created_at", "-pk")
+
+
+def list_chat_orders(conversations):
+    """批量取列表的默认订单；进行中优先，否则取最近创建的订单。"""
+    candidates = _chat_orders(OuterRef("product_id"), OuterRef("buyer_id"), OuterRef("seller_id"))
+    rows = list(conversations.annotate(
+        selected_order_id=Subquery(_order_priority(candidates).values("pk")[:1]),
+    ))
+    orders = Order.objects.in_bulk({row.selected_order_id for row in rows if row.selected_order_id})
+    return [(row, orders.get(row.selected_order_id)) for row in rows]
+
+
+def chat_order(conversation: Conversation, *, order_id=None) -> Order | None:
+    """解析本次查看的订单，不修改会话上的旧关联。"""
+    rows = _chat_orders(conversation.product_id, conversation.buyer_id, conversation.seller_id)
+    if order_id is None:
+        return _order_priority(rows.select_related("dispute")).first()
+    order = rows.select_related("dispute").filter(pk=order_id).first()
+    if order is None:
+        raise InvalidInput("订单与该会话不匹配")
+    return order
+
+
+def chat_context(conversation: Conversation, actor, *, order_id=None, dispute_id=None):
+    """订单双方按订单看工单；工作人员只能查看会话中有工单的订单。"""
+    read_conversation(conversation, actor)
+    if actor.pk in (conversation.buyer_id, conversation.seller_id) and dispute_id is None:
+        order = chat_order(conversation, order_id=order_id)
+        return order, getattr(order, "dispute", None)
+    tickets = conversation.disputes.select_related("order").filter(
+        status__in=(DISPUTE_OPEN, DISPUTE_CLOSED),
+    )
+    if order_id is not None:
+        tickets = tickets.filter(order_id=order_id)
+    if dispute_id is not None:
+        tickets = tickets.filter(pk=dispute_id)
+    ticket = tickets.order_by("-created_at", "-pk").first()
+    if ticket is None:
+        _deny(actor, "chat.view", "该订单或工单不属于可查看的会话",
+              target_type="conversation", target_id=conversation.pk)
+    return ticket.order, ticket
 
 
 def _can_read(conversation: Conversation, actor) -> bool:
