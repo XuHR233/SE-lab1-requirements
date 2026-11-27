@@ -1,7 +1,7 @@
 """定时清理入口：预约与订单的超时统一在一条命令里推进（REQ-006/013/015/016）。
 
 cron 示例（每 5 分钟）：
-    */5 * * * * cd <local-path> && venv/bin/python manage.py sweep_expired
+    */5 * * * * cd /absolute/path/to/lab03 && venv/bin/python manage.py sweep_expired
         >> tmp/sweep.log 2>&1
 """
 

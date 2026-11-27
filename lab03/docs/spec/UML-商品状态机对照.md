@@ -35,7 +35,7 @@
 行号会随改动漂移，需要现查时用：
 
 ```bash
-cd <local-path> && grep -n '^def ' catalog/services.py && sed -n '25,43p' catalog/state.py
+grep -n '^def ' catalog/services.py && sed -n '25,43p' catalog/state.py
 ```
 
 ## 3. 25 条转换逐条对账
@@ -101,7 +101,6 @@ UML 比 REQ 多说的是「谁可以触发」，REQ-008/REQ-009 的异常段与�
 ## 6. 复核怎么做（四条命令，都可复现）
 
 ```bash
-cd <local-path>
 source venv/bin/activate
 
 # ① 边集是否就是 25 条：应当打印 25
@@ -130,7 +129,7 @@ PYTHONPATH=. python -m pylint config accounts audit catalog tests manage.py --sc
 ## 8. 2026-11-21 复核整改（针对独立复核报告）
 
 独立复核（另一个模型，对照 REQ 与 UML 读代码并动态复现）提了 4 组 Day 2 问题，处置如下。
-只列与本状态机相关的；完整清单见 `docs/evidence/day2-audit-fix.md`。
+只列与本状态机相关的；完整清单见 原独立仓库历史材料（`docs/evidence/day2-audit-fix.md`，未随公开版迁移）。
 
 | 复核结论 | 状态机层面的事实 | 处置 |
 | --- | --- | --- |
@@ -142,3 +141,4 @@ PYTHONPATH=. python -m pylint config accounts audit catalog tests manage.py --sc
 
 整改后的门控：`pytest tests` → **153 passed**；`pylint` → **10.00/10**。
 本表第 3 节的行号与函数名已同步（函数名去掉了行号后缀，免得每次改动都过期）。
+公开版复跑：在含 `manage.py` 的目录执行上述命令，不依赖原内测主机。
